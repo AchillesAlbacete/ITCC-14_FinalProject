@@ -1,0 +1,566 @@
+openapi: 3.0.3
+info:
+  title: Freight-Flow Logistics API - Parcels & Complaints Module
+  description: API documentation for managing shipments, parcel tracking, and customer complaint resolution in the Freight-Flow centralized MongoDB database system.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development server for Freight-Flow
+
+tags:
+  - name: Parcels
+    description: Operations for managing parcel attributes, tracking numbers, and delivery statuses
+  - name: Complaints
+    description: Operations for logging and categorizing customer complaints (Delivery Issues vs. Seller Disputes)
+
+paths:
+  /parcels:
+    get:
+      tags:
+        - Parcels
+      summary: Retrieve all parcels
+      description: Fetches a list of all registered parcels in the logistics system.
+      parameters:
+        - name: current_status
+          in: query
+          description: Filter parcels by their current delivery status
+          required: false
+          schema:
+            type: string
+            example: "In Transit"
+        - name: limit
+          in: query
+          description: Maximum number of parcel records to return
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Parcel'
+              examples:
+                parcelsList:
+                  summary: A list of freight parcels
+                  value:
+                    - parcel_id: 1
+                      booking_id: 1001
+                      tracking_number: "FF-TRK-983421"
+                      weight: 2.50
+                      item_name: "Electronics - Mechanical Keyboard"
+                      current_status: "In Transit"
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Parcels
+      summary: Create a new parcel entry
+      description: Registers a new parcel associated with a booking, validating weights greater than zero.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParcelCreate'
+            examples:
+              newParcel:
+                summary: Parcel creation payload
+                value:
+                  booking_id: 1002
+                  tracking_number: "FF-TRK-983422"
+                  weight: 1.20
+                  item_name: "Apparel - Hoodie"
+                  current_status: "Booked"
+      responses:
+        '201':
+          description: Parcel successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+              examples:
+                createdParcel:
+                  summary: Successfully created parcel object
+                  value:
+                    parcel_id: 2
+                    booking_id: 1002
+                    tracking_number: "FF-TRK-983422"
+                    weight: 1.20
+                    item_name: "Apparel - Hoodie"
+                    current_status: "Booked"
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /parcels/{parcelId}:
+    get:
+      tags:
+        - Parcels
+      summary: Get parcel by ID
+      description: Retrieves details of a specific parcel using its unique `parcel_id`
+      parameters:
+        - name: parcelId
+          in: path
+          required: true
+          description: Numeric ID of the parcel
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+              examples:
+                singleParcel:
+                  summary: Parcel details
+                  value:
+                    parcel_id: 1
+                    booking_id: 1001
+                    tracking_number: "FF-TRK-983421"
+                    weight: 2.50
+                    item_name: "Electronics - Mechanical Keyboard"
+                    current_status: "In Transit"
+        '404':
+          description: Parcel not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Parcels
+      summary: Update an existing parcel
+      description: Updates parcel attributes such as weight, item name, or current delivery status (Full Update).
+      parameters:
+        - name: parcelId
+          in: path
+          required: true
+          description: Numeric ID of the parcel to update
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParcelCreate'
+            examples:
+              updateParcel:
+                summary: Updated parcel payload
+                value:
+                  booking_id: 1001
+                  tracking_number: "FF-TRK-983421"
+                  weight: 2.50
+                  item_name: "Electronics - Mechanical Keyboard"
+                  current_status: "Out for Delivery"
+      responses:
+        '200':
+          description: Parcel successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+              examples:
+                updatedParcelResult:
+                  summary: Updated parcel response
+                  value:
+                    parcel_id: 1
+                    booking_id: 1001
+                    tracking_number: "FF-TRK-983421"
+                    weight: 2.50
+                    item_name: "Electronics - Mechanical Keyboard"
+                    current_status: "Out for Delivery"
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Parcel not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Parcels
+      summary: Delete a parcel
+      description: Removes a parcel record from the system by ID.
+      parameters:
+        - name: parcelId
+          in: path
+          required: true
+          description: Numeric ID of the parcel to delete
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Parcel successfully deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Parcel deleted successfully"
+        '404':
+          description: Parcel not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /complaints:
+    get:
+      tags:
+        - Complaints
+      summary: Retrieve all complaints
+      description: Fetches all customer complaint logs, distinguishing between seller disputes and delivery issues.
+      parameters:
+        - name: category
+          in: query
+          description: Filter complaints by category (e.g., Delivery Issue, Seller Dispute)
+          required: false
+          schema:
+            type: string
+            example: "Delivery Issue"
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Complaint'
+              examples:
+                complaintsList:
+                  summary: List of customer complaints
+                  value:
+                    - complaint_id: 501
+                      customer_id: 12
+                      parcel_id: 1
+                      description: "Package arrived with damaged outer box and crushed contents."
+                      category: "Delivery Issue"
+                      created_at: "2026-11-03T11:30:00Z"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Complaints
+      summary: Submit a new complaint
+      description: Logs a new customer complaint referencing a customer and a specific parcel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplaintCreate'
+            examples:
+              newComplaint:
+                summary: Complaint creation payload
+                value:
+                  customer_id: 12
+                  parcel_id: 1
+                  description: "Seller shipped incorrect item variant (wrong color)."
+                  category: "Seller Dispute"
+      responses:
+        '201':
+          description: Complaint successfully logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+              examples:
+                createdComplaint:
+                  summary: Created complaint response
+                  value:
+                    complaint_id: 502
+                    customer_id: 12
+                    parcel_id: 1
+                    description: "Seller shipped incorrect item variant (wrong color)."
+                    category: "Seller Dispute"
+                    created_at: "2026-11-03T12:00:00Z"
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /complaints/{complaintId}:
+    get:
+      tags:
+        - Complaints
+      summary: Get complaint by ID
+      description: Retrieves a single customer complaint record by its unique identifier.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          description: Unique ID of the complaint
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+              examples:
+                singleComplaint:
+                  summary: Complaint details
+                  value:
+                    complaint_id: 501
+                    customer_id: 12
+                    parcel_id: 1
+                    description: "Package arrived with damaged outer box and crushed contents."
+                    category: "Delivery Issue"
+                    created_at: "2026-11-03T11:30:00Z"
+        '404':
+          description: Complaint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Complaints
+      summary: Update an existing complaint record
+      description: Updates complaint description or category (Full Update).
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          description: Unique ID of the complaint to update
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplaintCreate'
+            examples:
+              updateComplaint:
+                summary: Updated complaint payload
+                value:
+                  customer_id: 12
+                  parcel_id: 1
+                  description: "Package arrived with damaged outer box and crushed contents. Resolution pending."
+                  category: "Delivery Issue"
+      responses:
+        '200':
+          description: Complaint successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+              examples:
+                updatedComplaintResult:
+                  summary: Updated complaint response
+                  value:
+                    complaint_id: 501
+                    customer_id: 12
+                    parcel_id: 1
+                    description: "Package arrived with damaged outer box and crushed contents. Resolution pending."
+                    category: "Delivery Issue"
+                    created_at: "2026-11-03T11:30:00Z"
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Complaint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Complaints
+      summary: Delete a complaint record
+      description: Removes an existing complaint entry by ID.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          description: Unique ID of the complaint to delete
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Complaint successfully deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Complaint deleted successfully"
+        '404':
+          description: Complaint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Parcel:
+      type: object
+      required:
+        - parcel_id
+        - booking_id
+        - tracking_number
+        - weight
+        - item_name
+        - current_status
+      properties:
+        parcel_id:
+          type: integer
+          example: 1
+        booking_id:
+          type: integer
+          example: 1001
+        tracking_number:
+          type: string
+          example: "FF-TRK-983421"
+        weight:
+          type: number
+          format: float
+          minimum: 0.01
+          example: 2.50
+        item_name:
+          type: string
+          example: "Electronics - Mechanical Keyboard"
+        current_status:
+          type: string
+          example: "In Transit"
+
+    ParcelCreate:
+      type: object
+      required:
+        - booking_id
+        - tracking_number
+        - weight
+        - item_name
+        - current_status
+      properties:
+        booking_id:
+          type: integer
+          example: 1002
+        tracking_number:
+          type: string
+          example: "FF-TRK-983422"
+        weight:
+          type: number
+          format: float
+          minimum: 0.01
+          example: 1.20
+        item_name:
+          type: string
+          example: "Apparel - Hoodie"
+        current_status:
+          type: string
+          example: "Booked"
+
+    Complaint:
+      type: object
+      required:
+        - complaint_id
+        - customer_id
+        - parcel_id
+        - description
+        - category
+        - created_at
+      properties:
+        complaint_id:
+          type: integer
+          example: 501
+        customer_id:
+          type: integer
+          example: 12
+        parcel_id:
+          type: integer
+          example: 1
+        description:
+          type: string
+          example: "Package arrived with damaged outer box and crushed contents."
+        category:
+          type: string
+          enum:
+            - "Delivery Issue"
+            - "Seller Dispute"
+          example: "Delivery Issue"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-11-03T11:30:00Z"
+
+    ComplaintCreate:
+      type: object
+      required:
+        - customer_id
+        - parcel_id
+        - description
+        - category
+      properties:
+        customer_id:
+          type: integer
+          example: 12
+        parcel_id:
+          type: integer
+          example: 1
+        description:
+          type: string
+          example: "Seller shipped incorrect item variant (wrong color)."
+        category:
+          type: string
+          enum:
+            - "Delivery Issue"
+            - "Seller Dispute"
+          example: "Seller Dispute"
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Invalid input data or resource not found"
