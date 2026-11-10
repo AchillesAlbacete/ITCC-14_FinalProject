@@ -1,0 +1,586 @@
+openapi: 3.0.3
+info:
+  title: Freight-Flow Logistics API
+  description: |
+    REST API for the Freight-Flow logistics database (ITCC 33 - Advanced Database Systems).
+
+    This draft covers the **Customers** module, which supports three account types:
+    - **Retail**: standard contact details and address
+    - **E-Commerce**: seller fields (store name, business registration, return address override)
+    - **Non-Profit**: charity fields (tax exempt status, charity registration, donor reference codes)
+
+    The `account_type` field decides which extra fields are required.
+  version: 0.1.0
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+tags:
+  - name: Customers
+    description: Manage Retail, E-Commerce, and Non-Profit customer accounts
+
+security:
+  - bearerAuth: []
+
+paths:
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      description: Returns a paginated list of customers. Can be filtered by account type or searched by name.
+      operationId: listCustomers
+      parameters:
+        - $ref: '#/components/parameters/AccountTypeQuery'
+        - $ref: '#/components/parameters/SearchQuery'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Paginated list of customers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerList'
+              example:
+                data:
+                  - customer_id: 1001
+                    name: Dwayne Delos Santos
+                    contact_information: dwayne.delossantos@example.com
+                    account_type: Retail
+                    address: 12 Corrales Ave, Cagayan de Oro, Misamis Oriental
+                    created_at: '2026-10-31T08:15:00Z'
+                    updated_at: '2026-10-31T08:15:00Z'
+                page: 1
+                limit: 20
+                total: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      description: |
+        Creates a new customer. The request body depends on `account_type`:
+        Retail, E-Commerce, or Non-Profit. Fields from other account types are rejected.
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+            examples:
+              retail:
+                summary: Retail customer
+                value:
+                  name: Dwayne Delos Santos
+                  contact_information: dwayne.delossantos@example.com
+                  account_type: Retail
+                  address: 12 Corrales Ave, Cagayan de Oro, Misamis Oriental
+              ecommerce:
+                summary: E-Commerce seller
+                value:
+                  name: Juan dela Cruz
+                  contact_information: '+63 917 123 4567'
+                  account_type: E-Commerce
+                  address: Unit 5, Lapasan Business Park, Cagayan de Oro
+                  store_name: Juan's Gadgets
+                  business_registration_number: DTI-2026-004512
+                  return_address_override: Warehouse B, Carmen, Cagayan de Oro
+              nonprofit:
+                summary: Non-Profit organisation
+                value:
+                  name: Bukidnon Children's Foundation
+                  contact_information: info@bcf.example.org
+                  account_type: Non-Profit
+                  address: 88 Rizal St, Malaybalay, Bukidnon
+                  tax_exempt_status: true
+                  charity_registration_number: SEC-CH-2019-0873
+                  donor_reference_codes:
+                    - DON-2026-001
+                    - DON-2026-002
+      responses:
+        '201':
+          description: Customer created
+          headers:
+            Location:
+              description: URL of the newly created customer
+              schema:
+                type: string
+                example: /api/v1/customers/1002
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+              example:
+                customer_id: 1002
+                name: Juan dela Cruz
+                contact_information: '+63 917 123 4567'
+                account_type: E-Commerce
+                address: Unit 5, Lapasan Business Park, Cagayan de Oro
+                store_name: Juan's Gadgets
+                business_registration_number: DTI-2026-004512
+                return_address_override: Warehouse B, Carmen, Cagayan de Oro
+                created_at: '2026-10-31T09:00:00Z'
+                updated_at: '2026-10-31T09:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /customers/{customerId}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerIdPath'
+    get:
+      tags: [Customers]
+      summary: Get a customer by ID
+      description: Returns one customer, including the extra fields for its account type.
+      operationId: getCustomer
+      responses:
+        '200':
+          description: The requested customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+              example:
+                customer_id: 1003
+                name: Bukidnon Children's Foundation
+                contact_information: info@bcf.example.org
+                account_type: Non-Profit
+                address: 88 Rizal St, Malaybalay, Bukidnon
+                tax_exempt_status: true
+                charity_registration_number: SEC-CH-2019-0873
+                donor_reference_codes:
+                  - DON-2026-001
+                  - DON-2026-002
+                created_at: '2026-10-31T09:10:00Z'
+                updated_at: '2026-10-31T09:10:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Customers]
+      summary: Replace a customer
+      description: |
+        Fully replaces a customer record. All required fields for the account type must be sent.
+        The `account_type` of an existing customer cannot be changed.
+      operationId: replaceCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+            example:
+              name: Dwayne Delos Santos
+              contact_information: dwayne.delossantos@example.com
+              account_type: Retail
+              address: 45 Velez St, Cagayan de Oro, Misamis Oriental
+      responses:
+        '200':
+          description: Customer replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    patch:
+      tags: [Customers]
+      summary: Partially update a customer
+      description: |
+        Updates only the fields that are sent. The `account_type` cannot be changed.
+        Sending a field that does not belong to the customer's account type returns 422.
+      operationId: updateCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdate'
+            example:
+              contact_information: '+63 917 999 0000'
+              return_address_override: Warehouse C, Bulua, Cagayan de Oro
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [Customers]
+      summary: Delete a customer
+      description: |
+        Deletes a customer. A customer who still has bookings cannot be deleted
+        (referential integrity) and the request returns 409.
+      operationId: deleteCustomer
+      responses:
+        '204':
+          description: Customer deleted, no content returned
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT issued at login. Role-based access is enforced per endpoint.
+
+  parameters:
+    CustomerIdPath:
+      name: customerId
+      in: path
+      required: true
+      description: Unique ID of the customer
+      schema:
+        type: integer
+        minimum: 1
+        example: 1001
+    AccountTypeQuery:
+      name: account_type
+      in: query
+      required: false
+      description: Filter by account type
+      schema:
+        $ref: '#/components/schemas/AccountType'
+    SearchQuery:
+      name: search
+      in: query
+      required: false
+      description: Case-insensitive search on customer name
+      schema:
+        type: string
+        example: santos
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      description: Page number, starting at 1
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: Malformed request (invalid JSON or bad query parameter)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: BAD_REQUEST
+            message: Query parameter 'limit' must be between 1 and 100.
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Authentication token is missing or invalid.
+    NotFound:
+      description: Customer not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Customer with ID 9999 was not found.
+    Conflict:
+      description: Duplicate value or the customer is still referenced by other records
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: CONFLICT
+            message: A customer with this business_registration_number already exists.
+    ValidationError:
+      description: Request is well-formed but fails validation rules
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Validation failed.
+            details:
+              - field: store_name
+                issue: store_name is required for E-Commerce accounts.
+
+  schemas:
+    AccountType:
+      type: string
+      description: Customer category. Determines which extra fields apply.
+      enum: [Retail, E-Commerce, Non-Profit]
+      example: Retail
+
+    CustomerBase:
+      type: object
+      description: Fields shared by every customer type
+      required: [name, contact_information, account_type, address]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Full name or organisation name
+          example: Dwayne Delos Santos
+        contact_information:
+          type: string
+          maxLength: 150
+          description: Phone number or email
+          example: dwayne.delossantos@example.com
+        account_type:
+          $ref: '#/components/schemas/AccountType'
+        address:
+          type: string
+          maxLength: 200
+          description: Primary address
+          example: 12 Corrales Ave, Cagayan de Oro, Misamis Oriental
+
+    RetailCustomerCreate:
+      description: Retail customer (standard contact details and address only)
+      allOf:
+        - $ref: '#/components/schemas/CustomerBase'
+        - type: object
+          properties:
+            account_type:
+              type: string
+              enum: [Retail]
+
+    EcommerceCustomerCreate:
+      description: E-Commerce seller
+      allOf:
+        - $ref: '#/components/schemas/CustomerBase'
+        - type: object
+          required: [store_name, business_registration_number]
+          properties:
+            account_type:
+              type: string
+              enum: [E-Commerce]
+            store_name:
+              type: string
+              maxLength: 100
+              example: Juan's Gadgets
+            business_registration_number:
+              type: string
+              maxLength: 50
+              description: Must be unique across all sellers
+              example: DTI-2026-004512
+            return_address_override:
+              type: string
+              maxLength: 200
+              description: Optional address used instead of the default for returns
+              example: Warehouse B, Carmen, Cagayan de Oro
+
+    NonProfitCustomerCreate:
+      description: Non-Profit organisation
+      allOf:
+        - $ref: '#/components/schemas/CustomerBase'
+        - type: object
+          required: [tax_exempt_status, charity_registration_number]
+          properties:
+            account_type:
+              type: string
+              enum: [Non-Profit]
+            tax_exempt_status:
+              type: boolean
+              description: Whether the organisation is exempt from tax on its shipments
+              example: true
+            charity_registration_number:
+              type: string
+              maxLength: 50
+              description: Must be unique across all organisations
+              example: SEC-CH-2019-0873
+            donor_reference_codes:
+              type: array
+              items:
+                type: string
+              example: [DON-2026-001, DON-2026-002]
+
+    CustomerCreate:
+      description: Request body for creating or replacing a customer. The shape depends on `account_type`.
+      oneOf:
+        - $ref: '#/components/schemas/RetailCustomerCreate'
+        - $ref: '#/components/schemas/EcommerceCustomerCreate'
+        - $ref: '#/components/schemas/NonProfitCustomerCreate'
+      discriminator:
+        propertyName: account_type
+        mapping:
+          Retail: '#/components/schemas/RetailCustomerCreate'
+          E-Commerce: '#/components/schemas/EcommerceCustomerCreate'
+          Non-Profit: '#/components/schemas/NonProfitCustomerCreate'
+
+    CustomerUpdate:
+      type: object
+      description: Partial update. Send only the fields to change. `account_type` is not accepted.
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        contact_information:
+          type: string
+          maxLength: 150
+        address:
+          type: string
+          maxLength: 200
+        store_name:
+          type: string
+          maxLength: 100
+          description: E-Commerce only
+        business_registration_number:
+          type: string
+          maxLength: 50
+          description: E-Commerce only
+        return_address_override:
+          type: string
+          maxLength: 200
+          description: E-Commerce only
+        tax_exempt_status:
+          type: boolean
+          description: Non-Profit only
+        charity_registration_number:
+          type: string
+          maxLength: 50
+          description: Non-Profit only
+        donor_reference_codes:
+          type: array
+          items:
+            type: string
+          description: Non-Profit only
+
+    RecordMetadata:
+      type: object
+      description: Server-generated fields
+      required: [customer_id, created_at, updated_at]
+      properties:
+        customer_id:
+          type: integer
+          readOnly: true
+          example: 1001
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2026-10-31T08:15:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2026-10-31T08:15:00Z'
+
+    RetailCustomer:
+      allOf:
+        - $ref: '#/components/schemas/RecordMetadata'
+        - $ref: '#/components/schemas/RetailCustomerCreate'
+
+    EcommerceCustomer:
+      allOf:
+        - $ref: '#/components/schemas/RecordMetadata'
+        - $ref: '#/components/schemas/EcommerceCustomerCreate'
+
+    NonProfitCustomer:
+      allOf:
+        - $ref: '#/components/schemas/RecordMetadata'
+        - $ref: '#/components/schemas/NonProfitCustomerCreate'
+
+    Customer:
+      description: A customer record as returned by the API
+      oneOf:
+        - $ref: '#/components/schemas/RetailCustomer'
+        - $ref: '#/components/schemas/EcommerceCustomer'
+        - $ref: '#/components/schemas/NonProfitCustomer'
+      discriminator:
+        propertyName: account_type
+        mapping:
+          Retail: '#/components/schemas/RetailCustomer'
+          E-Commerce: '#/components/schemas/EcommerceCustomer'
+          Non-Profit: '#/components/schemas/NonProfitCustomer'
+
+    CustomerList:
+      type: object
+      required: [data, page, limit, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          description: Total number of customers matching the filters
+          example: 57
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Validation failed.
+        details:
+          type: array
+          description: Field-level problems, when applicable
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: store_name
+              issue:
+                type: string
+                example: store_name is required for E-Commerce accounts.
