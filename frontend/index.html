@@ -2,176 +2,306 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Freight-Flow | Login or Register</title>
-<link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login or Register • Freight-Flow Express</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="css/ff.css"><script src="js/api.js"></script>
 </head>
-<body>
-<header class="top">
-  <div class="logo">FREIGHT—FLOW<small>EXPRESS</small></div>
-  <nav><a class="on" href="index.html">Login</a><a href="profile.html">Profile</a></nav>
-</header>
+<body class="text-slate-900 antialiased">
+<div class="min-h-screen flex flex-col">
+  <header class="bg-navy text-white lg:bg-transparent lg:text-slate-900 lg:absolute lg:top-0 lg:left-0 lg:right-0 lg:z-10">
+    <div class="px-6 sm:px-10 py-5 flex items-center justify-between">
+      <a href="index.html" class="flex items-center gap-3 text-white" aria-label="Freight-Flow Express home">
+        <span class="w-9 h-9 rounded-xl bg-royal grid place-items-center"><i data-lucide="truck" class="w-5 h-5"></i></span>
+        <span class="leading-tight"><span class="block font-extrabold tracking-tight">FREIGHT—FLOW</span><span class="block text-[11px] tracking-[0.2em] text-slate-400">EXPRESS</span></span>
+      </a>
+    </div>
+  </header>
 
-<main>
-  <div class="split">
-    <!-- LOGIN -->
-    <section class="left">
-      <div class="eyebrow">Good things. Delivered.</div>
-      <h1>Every parcel.<br>Every possibility.</h1>
-      <p>A smarter way to send, track, and manage your deliveries across the Philippines.</p>
-      <hr>
-      <h2>Welcome back</h2>
-      <p>Log in to your Freight-Flow account.</p>
-      <form id="login">
-        <label for="l-email">Email address</label>
-        <input id="l-email" type="email" required placeholder="alex.santos@email.com">
-        <label for="l-pass">Password</label>
-        <input id="l-pass" type="password" required minlength="6" placeholder="••••••••">
-        <button class="btn" type="submit">Log in →</button>
-      </form>
-    </section>
+  <main class="flex-1 grid lg:grid-cols-2">
+    <!-- ================= LOGIN (left, Deep Navy) ================= -->
+    <section class="bg-navy text-white px-6 sm:px-10 lg:px-16 pt-10 lg:pt-32 pb-12 flex flex-col" aria-labelledby="login-title">
+      <div class="max-w-md w-full mx-auto lg:mx-0 lg:ml-auto lg:mr-8">
+        <p class="text-xs font-semibold tracking-[0.2em] uppercase text-blue-400">Good things. Delivered.</p>
+        <h1 class="mt-3 text-4xl sm:text-5xl font-extrabold tracking-tight leading-[1.05]">Every parcel.<br>Every possibility.</h1>
+        <p class="mt-4 text-slate-400 leading-relaxed">A smarter way to send, track, and manage your deliveries across Cagayan de Oro and beyond.</p>
 
-    <!-- REGISTER -->
-    <section class="right">
-      <div class="eyebrow">Get started</div>
-      <h1>Create your account</h1>
-      <p class="sub">One account, a world of delivery possibilities.</p>
+        <hr class="my-8 border-slate-700">
 
-      <form id="reg">
-        <label>Account type</label>
-        <div class="tabs" role="tablist" id="tabs">
-          <button type="button" role="tab" data-type="Retail" aria-selected="true">Retail</button>
-          <button type="button" role="tab" data-type="E-Commerce" aria-selected="false">E-Commerce</button>
-          <button type="button" role="tab" data-type="Non-Profit" aria-selected="false">Non-Profit</button>
-        </div>
-        <p class="hint" id="hint"></p>
+        <h2 id="login-title" class="text-xl font-bold">Welcome back</h2>
+        <p class="text-sm text-slate-400 mt-1">Log in to your Freight-Flow account.</p>
 
-        <!-- Retail: first + last name -->
-        <div class="grp row" data-types="Retail">
-          <div><label for="first">First name</label><input id="first" name="first" required placeholder="Alex"></div>
-          <div><label for="last">Last name</label><input id="last" name="last" required placeholder="Santos"></div>
-        </div>
-
-        <!-- E-Commerce / Non-Profit: one organisation name -->
-        <div class="grp" data-types="E-Commerce Non-Profit">
-          <label for="org">Business / organisation name</label>
-          <input id="org" name="org" required placeholder="Name on your account">
-        </div>
-
-        <!-- E-Commerce only -->
-        <div class="grp" data-types="E-Commerce">
-          <div class="row">
-            <div><label for="store">Store name</label><input id="store" name="store_name" required placeholder="Juan’s Gadgets"></div>
-            <div><label for="brn">Business registration no.</label><input id="brn" name="business_registration_number" required placeholder="DTI-2026-004512"></div>
+        <form id="login" class="mt-5 space-y-4" novalidate>
+          <div role="alert" id="login-err" class="hidden rounded-xl border border-rose-400/40 bg-rose-500/10 text-rose-200 text-sm px-3 py-2"></div>
+          <div>
+            <label for="l-email" class="block text-sm font-medium text-slate-300 mb-1">Email address</label>
+            <input id="l-email" name="email" type="email" class="field" autocomplete="username" required placeholder="maria.santos@email.com" aria-describedby="e-l-email">
+            <p class="err" id="e-l-email" style="color:#FCA5A5"></p>
           </div>
-          <label for="ret">Return address override <span class="hint">(optional)</span></label>
-          <input id="ret" name="return_address_override" placeholder="Warehouse B, Carmen, Cagayan de Oro">
+          <div>
+            <label for="l-pass" class="block text-sm font-medium text-slate-300 mb-1">Password</label>
+            <input id="l-pass" name="password" type="password" class="field" autocomplete="current-password" required minlength="6" placeholder="••••••••" aria-describedby="e-l-pass">
+            <p class="err" id="e-l-pass" style="color:#FCA5A5"></p>
+          </div>
+          <button class="btn btn-primary w-full" type="submit" id="login-btn">Log in <i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+        </form>
+
+        <div class="mt-8 pt-6 border-t border-slate-700">
+          <p class="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400">Live demo shortcuts</p>
+          <p class="text-xs text-slate-500 mt-1">Skip the login and jump straight in as a seeded demo user.</p>
+          <div class="mt-3 grid grid-cols-2 gap-2" id="demo-row">
+            <button type="button" class="btn btn-sm bg-white/5 text-white border-slate-600 hover:bg-white/10" data-demo="Customer"><i data-lucide="user-round" class="w-4 h-4"></i> Customer (Maria)</button>
+            <button type="button" class="btn btn-sm bg-white/5 text-white border-slate-600 hover:bg-white/10" data-demo="Manager"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Manager</button>
+            <button type="button" class="btn btn-sm bg-white/5 text-white border-slate-600 hover:bg-white/10" data-demo="Courier"><i data-lucide="truck" class="w-4 h-4"></i> Courier</button>
+            <button type="button" class="btn btn-sm bg-white/5 text-white border-slate-600 hover:bg-white/10" data-demo="CSR"><i data-lucide="headset" class="w-4 h-4"></i> CSR</button>
+          </div>
         </div>
-
-        <!-- Non-Profit only -->
-        <div class="grp" data-types="Non-Profit">
-          <label for="crn">Charity registration no.</label>
-          <input id="crn" name="charity_registration_number" required placeholder="SEC-CH-2019-0873">
-          <label for="donor">Donor reference codes <span class="hint">(optional, comma-separated)</span></label>
-          <input id="donor" name="donor_reference_codes" placeholder="DON-2026-001, DON-2026-002">
-          <label class="check"><input type="checkbox" id="tax" name="tax_exempt_status"> Tax exempt organisation</label>
-        </div>
-
-        <label for="contact">Contact info · Email / mobile</label>
-        <input id="contact" name="contact" required placeholder="alex.santos@email.com · 0917 555 0198">
-        <label for="addr">Address</label>
-        <input id="addr" name="address" required placeholder="128 Mabini St, Brgy. Poblacion, Makati City">
-
-        <p class="fine">By continuing, you agree to our Terms of Service and Privacy Policy.</p>
-        <button class="btn" type="submit" id="reg-btn">Create account →</button>
-      </form>
+      </div>
     </section>
-  </div>
-</main>
 
-<script src="app.js"></script>
+    <!-- ================= REGISTER (right, white card) ================= -->
+    <section class="px-4 sm:px-10 lg:px-16 pt-10 lg:pt-32 pb-12" aria-labelledby="reg-title">
+      <div class="max-w-lg w-full mx-auto lg:mx-0 lg:mr-auto lg:ml-8">
+        <div class="card p-6 sm:p-8">
+          <p class="text-xs font-semibold tracking-[0.2em] uppercase text-royal">Get started</p>
+          <h2 id="reg-title" class="mt-1 text-3xl font-extrabold tracking-tight">Create your account</h2>
+          <p class="text-slate-500 mt-1">One account, a world of delivery possibilities.</p>
+
+          <form id="reg" class="mt-6 space-y-4" novalidate>
+            <div>
+              <span class="label" id="type-label">Account type</span>
+              <div class="tabs" role="tablist" id="tabs" aria-labelledby="type-label">
+                <button type="button" role="tab" id="tab-Retail" data-type="Retail" aria-selected="true" aria-controls="reg-fields">Retail</button>
+                <button type="button" role="tab" id="tab-E-Commerce" data-type="E-Commerce" aria-selected="false" aria-controls="reg-fields" tabindex="-1">E-Commerce</button>
+                <button type="button" role="tab" id="tab-Non-Profit" data-type="Non-Profit" aria-selected="false" aria-controls="reg-fields" tabindex="-1">Non-Profit</button>
+              </div>
+              <p class="text-xs text-slate-500 mt-2" id="hint" aria-live="polite"></p>
+            </div>
+
+            <div id="reg-fields" role="tabpanel" class="space-y-4">
+              <!-- Retail -->
+              <div class="grp grid sm:grid-cols-2 gap-4" data-types="Retail">
+                <div><label class="label" for="r-first_name">First name</label><input class="field" id="r-first_name" data-field="first_name" required maxlength="50" placeholder="Alex" autocomplete="given-name"><p class="err" data-err="first_name"></p></div>
+                <div><label class="label" for="r-last_name">Last name</label><input class="field" id="r-last_name" data-field="last_name" required maxlength="50" placeholder="Santos" autocomplete="family-name"><p class="err" data-err="last_name"></p></div>
+              </div>
+
+              <!-- E-Commerce / Non-Profit: organisation name -->
+              <div class="grp" data-types="E-Commerce Non-Profit">
+                <label class="label" for="r-org">Business / organisation name</label>
+                <input class="field" id="r-org" data-field="name" required maxlength="100" placeholder="Name on your account" autocomplete="organization">
+                <p class="err" data-err="name"></p>
+              </div>
+
+              <!-- E-Commerce only -->
+              <div class="grp space-y-4" data-types="E-Commerce">
+                <div class="grid sm:grid-cols-2 gap-4">
+                  <div><label class="label" for="r-store_name">Store name</label><input class="field" id="r-store_name" data-field="store_name" required maxlength="100" placeholder="Juan's Gadgets"><p class="err" data-err="store_name"></p></div>
+                  <div><label class="label" for="r-brn">Business registration no.</label><input class="field" id="r-brn" data-field="business_registration_number" required maxlength="50" placeholder="DTI-2026-004512"><p class="err" data-err="business_registration_number"></p></div>
+                </div>
+                <div><label class="label" for="r-return">Return address override <span class="text-slate-400 font-normal">(optional)</span></label><input class="field" id="r-return" data-field="return_address_override" maxlength="200" placeholder="Warehouse B, Carmen, Cagayan de Oro"><p class="err" data-err="return_address_override"></p></div>
+              </div>
+
+              <!-- Non-Profit only -->
+              <div class="grp space-y-4" data-types="Non-Profit">
+                <div><label class="label" for="r-crn">Charity registration no.</label><input class="field" id="r-crn" data-field="charity_registration_number" required maxlength="50" placeholder="SEC-CH-2019-0873"><p class="err" data-err="charity_registration_number"></p></div>
+                <div><label class="label" for="r-donor">Donor reference codes <span class="text-slate-400 font-normal">(optional, comma-separated)</span></label><input class="field" id="r-donor" data-field="donor_reference_codes" placeholder="DON-2026-001, DON-2026-002"><p class="err" data-err="donor_reference_codes"></p></div>
+                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input type="checkbox" id="r-tax" class="w-4 h-4 accent-blue-600"> Tax-exempt organisation</label>
+              </div>
+
+              <!-- Common -->
+              <div>
+                <label class="label" for="r-contact">Contact info <span class="text-slate-400 font-normal">(email / mobile)</span></label>
+                <input class="field" id="r-contact" data-field="contact_info" required maxlength="150" placeholder="alex.santos@email.com · 0917 555 0198" autocomplete="email">
+                <p class="text-xs text-slate-400 mt-1">Include your email address &mdash; you will use it to log in.</p>
+                <p class="err" data-err="contact_info"></p>
+              </div>
+              <div>
+                <label class="label" for="r-address">Address</label>
+                <input class="field" id="r-address" data-field="address" required maxlength="200" placeholder="128 Mabini St, Brgy. Poblacion, Cagayan de Oro City" autocomplete="street-address">
+                <p class="err" data-err="address"></p>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-400">By continuing, you agree to our Terms of Service and Privacy Policy.</p>
+            <button class="btn btn-primary w-full" type="submit" id="reg-btn">Create account <i data-lucide="arrow-right" class="w-4 h-4"></i></button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-white border-t border-line">
+    <div class="px-6 sm:px-10 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <span>&copy; 2026 Freight-Flow Express &bull; Cagayan de Oro City</span>
+      <span>ITCC-14 Final Project &bull; Demo-grade login: the password is not verified.</span>
+    </div>
+  </footer>
+</div>
+
 <script>
-const HINTS = {
-  'Retail': 'Personal deliveries, made simple.',
-  'E-Commerce': 'For online sellers. Bulk booking and return address options.',
-  'Non-Profit': 'For charities and foundations. Tax-exempt billing supported.'
-};
-let type = 'Retail';
-const form = document.getElementById('reg');
-
-function setType(t) {
-  type = t;
-  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.type === t));
-  document.getElementById('hint').textContent = HINTS[t];
-  document.querySelectorAll('.grp').forEach(g => {
-    const show = g.dataset.types.split(' ').includes(t);
-    g.hidden = !show;
-    g.querySelectorAll('input').forEach(i => i.disabled = !show); // hidden fields skip validation
-  });
-}
-document.getElementById('tabs').addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if (b) setType(b.dataset.type);
-});
-setType('Retail');
-
-form.addEventListener('submit', async e => {
-  e.preventDefault();
-  if (!form.reportValidity()) return;
-  const v = n => (form.elements[n] && !form.elements[n].disabled ? form.elements[n].value.trim() : '');
-
-  // Build the body exactly as the POST /customers schema expects
-  const payload = {
-    name: type === 'Retail' ? (v('first') + ' ' + v('last')).trim() : v('org'),
-    contact_information: v('contact'),
-    account_type: type,
-    address: v('address')
+(function () {
+  const HINTS = {
+    'Retail': 'Personal deliveries, made simple.',
+    'E-Commerce': 'For online sellers. Bulk booking and return address options.',
+    'Non-Profit': 'For charities and foundations. Tax-exempt billing supported.',
   };
-  if (type === 'E-Commerce') {
-    payload.store_name = v('store_name');
-    payload.business_registration_number = v('business_registration_number');
-    if (v('return_address_override')) payload.return_address_override = v('return_address_override');
+  let type = 'Retail';
+  const form = FF.$('reg');
+  const tabs = [...document.querySelectorAll('#tabs button')];
+
+  function setType(t, focus) {
+    type = t;
+    tabs.forEach((b) => { const on = b.dataset.type === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
+    FF.$('hint').textContent = HINTS[t];
+    document.querySelectorAll('#reg .grp').forEach((g) => {
+      const show = g.dataset.types.split(' ').includes(t);
+      g.hidden = !show;
+      g.querySelectorAll('input').forEach((i) => { i.disabled = !show; }); // hidden fields skip validation + submission
+    });
+    clearErrors(form);
   }
-  if (type === 'Non-Profit') {
-    payload.tax_exempt_status = document.getElementById('tax').checked;
-    payload.charity_registration_number = v('charity_registration_number');
-    const codes = v('donor_reference_codes').split(',').map(s => s.trim()).filter(Boolean);
-    if (codes.length) payload.donor_reference_codes = codes;
+  FF.$('tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setType(b.dataset.type); });
+  FF.$('tabs').addEventListener('keydown', (e) => {
+    const i = tabs.findIndex((b) => b.dataset.type === type);
+    const next = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i + tabs.length - 1) % tabs.length : -1;
+    if (next >= 0) { e.preventDefault(); setType(tabs[next].dataset.type, true); }
+  });
+
+  function clearErrors(scope) {
+    scope.querySelectorAll('.field.invalid').forEach((i) => { i.classList.remove('invalid'); i.removeAttribute('aria-invalid'); });
+    scope.querySelectorAll('.err').forEach((e) => { e.classList.remove('show'); e.textContent = ''; });
+  }
+  function showError(input, msg) {
+    if (!input) return;
+    input.classList.add('invalid');
+    input.setAttribute('aria-invalid', 'true');
+    const err = input.parentElement.querySelector('.err');
+    if (err) { err.textContent = msg; err.classList.add('show'); }
+  }
+  // Show 422 details on the matching register inputs; returns the first invalid input
+  function applyFieldErrors(err) {
+    let first = null;
+    Object.entries(FF.fieldErrors(err)).forEach(([field, issue]) => {
+      // Retail derives `name` from first/last, so report it on the first-name input
+      const key = field === 'name' && type === 'Retail' ? 'first_name' : field;
+      const input = form.querySelector(`[data-field="${key}"]:not(:disabled)`);
+      showError(input, issue);
+      if (input && !first) first = input;
+    });
+    return first;
   }
 
-  const btn = document.getElementById('reg-btn');
-  btn.disabled = true;
-  try {
-    const customer = await api('/customers', { method: 'POST', body: JSON.stringify(payload) });
-    store.set(customer);
-    location.href = 'profile.html';
-  } catch (err) {
-    if (err.status) { toast(errorText(err), 'err'); }
-    else {
-      // API not running: save locally so the pages can still be demoed
-      store.set(Object.assign({ customer_id: Date.now() % 100000, created_at: new Date().toISOString() }, payload));
-      toast('API unreachable. Continuing in demo mode.', 'ok');
-      setTimeout(() => location.href = 'profile.html', 900);
+  // Remove an error as soon as the user edits the field
+  document.addEventListener('input', (e) => {
+    const i = e.target;
+    if (i.classList && i.classList.contains('invalid')) {
+      i.classList.remove('invalid'); i.removeAttribute('aria-invalid');
+      const er = i.parentElement.querySelector('.err'); if (er) { er.classList.remove('show'); er.textContent = ''; }
     }
-  } finally { btn.disabled = false; }
-});
+  });
 
-document.getElementById('login').addEventListener('submit', async e => {
-  e.preventDefault();
-  const email = document.getElementById('l-email').value.trim();
-  const password = document.getElementById('l-pass').value;
-  try {
-    // /auth/login is not in the OpenAPI draft yet. Add it, or change this call.
-    const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-    store.set(res.customer);
-    location.href = 'profile.html';
-  } catch (err) {
-    if (err.status) return toast(errorText(err), 'err');
-    const saved = store.get(); // demo mode: match against the account registered in this browser
-    if (saved && saved.contact_information.toLowerCase().includes(email.toLowerCase())) location.href = 'profile.html';
-    else toast('API unreachable and no demo account found. Register first.', 'err');
-  }
-});
+  // ---------- Register ----------
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors(form);
+    // Native validation on visible (enabled) inputs only
+    let firstBad = null;
+    form.querySelectorAll('input[data-field]:not(:disabled)').forEach((i) => {
+      if (i.required && !i.value.trim()) { showError(i, 'This field is required.'); if (!firstBad) firstBad = i; }
+    });
+    if (firstBad) { firstBad.focus(); return; }
+
+    const v = (f) => { const el = form.querySelector(`[data-field="${f}"]:not(:disabled)`); return el ? el.value.trim() : ''; };
+    const payload = { account_type: type, contact_info: v('contact_info'), address: v('address') };
+    if (type === 'Retail') {
+      payload.first_name = v('first_name'); payload.last_name = v('last_name');
+      payload.name = `${payload.first_name} ${payload.last_name}`.trim();
+    } else {
+      payload.name = v('name');
+    }
+    if (type === 'E-Commerce') {
+      payload.store_name = v('store_name');
+      payload.business_registration_number = v('business_registration_number');
+      if (v('return_address_override')) payload.return_address_override = v('return_address_override');
+    }
+    if (type === 'Non-Profit') {
+      payload.tax_exempt_status = FF.$('r-tax').checked;
+      payload.charity_registration_number = v('charity_registration_number');
+      const codes = v('donor_reference_codes').split(',').map((s) => s.trim()).filter(Boolean);
+      if (codes.length) payload.donor_reference_codes = codes;
+    }
+
+    const btn = FF.$('reg-btn');
+    btn.disabled = true;
+    try {
+      const customer = await FF.api.post('/customers', payload, { silent: true });
+      FF.session.loginCustomer(customer);
+      FF.toast('Account created. Redirecting…', 'success');
+      location.href = 'shipments.html';
+    } catch (err) {
+      btn.disabled = false;
+      if (err.status === 422) {
+        const first = applyFieldErrors(err);
+        FF.toast('Please fix the highlighted fields.', 'error', { title: 'Validation error (422)' });
+        if (first) first.focus();
+      } else if (err.status === 409) {
+        showError(form.querySelector('[data-field="contact_info"]'), err.message);
+        FF.toast(err.message, 'warning', { title: 'Account already exists (409)' });
+        FF.$('r-contact').focus();
+      } else {
+        FF.toast(err.message, 'error', { title: err.status ? `Request failed (${err.status})` : 'Server unreachable' });
+      }
+    }
+  });
+
+  // ---------- Login ----------
+  const loginForm = FF.$('login');
+  const loginErr = FF.$('login-err');
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors(loginForm);
+    loginErr.classList.add('hidden');
+    const email = FF.$('l-email').value.trim();
+    const password = FF.$('l-pass').value;
+    let bad = null;
+    if (!email) { showError(FF.$('l-email'), 'Email is required.'); bad = FF.$('l-email'); }
+    if (password.length < 6) { showError(FF.$('l-pass'), 'Password must be at least 6 characters.'); bad = bad || FF.$('l-pass'); }
+    if (bad) { bad.focus(); return; }
+
+    const btn = FF.$('login-btn');
+    btn.disabled = true;
+    try {
+      const res = await FF.api.post('/auth/login', { email, password }, { silent: true });
+      FF.session.loginCustomer(res.customer);
+      location.href = 'shipments.html';
+    } catch (err) {
+      btn.disabled = false;
+      if (err.status === 422) {
+        const m = FF.fieldErrors(err);
+        if (m.email) showError(FF.$('l-email'), m.email);
+        if (m.password) showError(FF.$('l-pass'), m.password);
+      } else {
+        loginErr.textContent = err.message;
+        loginErr.classList.remove('hidden');
+      }
+    }
+  });
+
+  // ---------- Live demo shortcuts ----------
+  const STAFF = { Manager: 1, Courier: 5, CSR: 8 };
+  FF.$('demo-row').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-demo]');
+    if (!b) return;
+    const role = b.dataset.demo;
+    if (role === 'Customer') { FF.session.loginCustomer({ customer_id: 502 }); location.href = 'booking.html'; }
+    else { FF.session.loginStaff(role, STAFF[role]); location.href = FF.ROLE_HOME[role]; }
+  });
+
+  setType('Retail');
+  FF.icons();
+})();
 </script>
 </body>
 </html>

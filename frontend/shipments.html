@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Shipments • Freight-Flow Express</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="css/ff.css"><script src="js/api.js"></script></head>
+<body class="text-slate-900 antialiased">
+<div id="ff-sidebar"></div>
+<div class="lg:pl-64 min-h-screen flex flex-col"><div id="ff-topbar"></div>
+<main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
+
+  <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-3xl font-extrabold tracking-tight">Sent &amp; Received Shipments</h1>
+      <p class="text-slate-500 mt-1">Track every parcel you send or receive, and report a problem in a couple of clicks.</p>
+    </div>
+    <a href="booking.html" class="btn btn-primary"><i data-lucide="package-plus" class="w-4 h-4"></i> New Booking</a>
+  </div>
+
+  <!-- Summary tiles -->
+  <section aria-label="Shipment summary" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="tiles">
+    <div class="card p-5"><div class="flex items-center justify-between"><span class="text-sm text-slate-500">Active</span><i data-lucide="package" class="w-5 h-5 text-royal"></i></div><div class="mt-2 text-3xl font-extrabold leading-none" id="t-active"><span class="skeleton inline-block w-10 h-8"></span></div><div class="text-xs text-slate-400 mt-1">Not yet delivered</div></div>
+    <div class="card p-5"><div class="flex items-center justify-between"><span class="text-sm text-slate-500">In Transit</span><i data-lucide="truck" class="w-5 h-5 text-amber-500"></i></div><div class="mt-2 text-3xl font-extrabold leading-none" id="t-transit"><span class="skeleton inline-block w-10 h-8"></span></div><div class="text-xs text-slate-400 mt-1">On the road or out for delivery</div></div>
+    <div class="card p-5"><div class="flex items-center justify-between"><span class="text-sm text-slate-500">Delivered</span><i data-lucide="circle-check" class="w-5 h-5 text-emerald-500"></i></div><div class="mt-2 text-3xl font-extrabold leading-none" id="t-delivered"><span class="skeleton inline-block w-10 h-8"></span></div><div class="text-xs text-slate-400 mt-1">Handed over to the receiver</div></div>
+    <div class="card p-5"><div class="flex items-center justify-between"><span class="text-sm text-slate-500">Awaiting payment</span><i data-lucide="hourglass" class="w-5 h-5 text-slate-400"></i></div><div class="mt-2 text-3xl font-extrabold leading-none" id="t-await"><span class="skeleton inline-block w-10 h-8"></span></div><div class="text-xs text-slate-400 mt-1">Booking still pending</div></div>
+  </section>
+
+  <!-- Filters -->
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div class="tabs" role="tablist" aria-label="Filter shipments" id="tabs"></div>
+    <div class="relative w-full sm:w-72">
+      <label for="search" class="sr-only">Search shipments</label>
+      <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+      <input id="search" type="search" class="field" style="padding-left:36px" placeholder="Tracking no., item or name" autocomplete="off">
+    </div>
+  </div>
+
+  <!-- Table -->
+  <section class="card overflow-hidden" aria-label="Shipments list">
+    <div class="overflow-x-auto" id="table-wrap" aria-live="polite">
+      <table class="ledger w-full min-w-[860px]">
+        <thead><tr>
+          <th scope="col">Tracking No.</th><th scope="col">Item &amp; weight</th><th scope="col">Route</th>
+          <th scope="col">Payment</th><th scope="col">Status</th><th scope="col" class="text-right">Action</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="state" hidden></div>
+    <div class="px-4 py-3 border-t border-slate-100 text-xs text-slate-500" id="footer" hidden></div>
+  </section>
+</main></div>
+
+<script>
+const session = FF.mountShell({ page: 'shipments.html', roles: ['Customer'] });
+const CID = session.customer_id;
+const CATEGORIES = ['Delivery Issue', 'Seller Dispute', 'Billing Issue', 'Damaged Item'];
+const TABS = [
+  ['all', 'All', () => true],
+  ['sent', 'Sent', (p) => p.sender_id === CID],
+  ['received', 'Received', (p) => p.receiver_id === CID && p.sender_id !== CID],
+  ['transit', 'In Transit', (p) => p.current_status === 'In Transit' || p.current_status === 'Out for Delivery'],
+  ['delivered', 'Delivered', (p) => p.current_status === 'Delivered'],
+];
+
+let parcels = [];
+let complaintCount = {};   // parcel_id -> number of this customer's complaints
+let tab = 'all';
+let query = '';
+let loaded = false;
+
+const $ = FF.$;
+const byId = (id) => parcels.find((p) => p.parcel_id === Number(id));
+const direction = (p) => (p.sender_id === CID ? 'Sent' : 'Received');
+
+// ---------- Fetch ----------
+async function fetchAll(path, query) {
+  let page = 1, out = [], total = 0;
+  do {
+    const r = await FF.api.get(path, { ...query, limit: 100, page }, { silent: true });
+    out = out.concat(r.data); total = r.total; page++;
+  } while (out.length < total && page <= 10);
+  return { data: out, total };
+}
+
+async function load() {
+  loaded = false;
+  renderTiles(null);
+  renderTabs();
+  renderState('loading');
+  try {
+    const [pr, cr] = await Promise.all([
+      fetchAll('/parcels', { customer_id: CID, include: 'details' }),
+      fetchAll('/complaints', { customer_id: CID }).catch(() => ({ data: [] })), // complaint counts are optional
+    ]);
+    parcels = pr.data;
+    complaintCount = {};
+    cr.data.forEach((c) => { complaintCount[c.parcel_id] = (complaintCount[c.parcel_id] || 0) + 1; });
+    loaded = true;
+    renderAll();
+  } catch (err) {
+    renderState('error', err.message);
+    renderTiles([]);
+  }
+}
+
+// ---------- Render ----------
+function renderTiles(list) {
+  const set = (id, v) => { $(id).textContent = v; };
+  if (list === null) { ['t-active', 't-transit', 't-delivered', 't-await'].forEach((id) => { $(id).innerHTML = '<span class="skeleton inline-block w-10 h-8"></span>'; }); return; }
+  if (!list.length && !loaded) { ['t-active', 't-transit', 't-delivered', 't-await'].forEach((id) => set(id, '—')); return; }
+  set('t-active', list.filter((p) => !['Delivered', 'Failed'].includes(p.current_status)).length);
+  set('t-transit', list.filter(TABS[3][2]).length);
+  set('t-delivered', list.filter(TABS[4][2]).length);
+  set('t-await', list.filter((p) => p.booking_status === 'Pending').length);
+}
+
+function renderTabs() {
+  $('tabs').innerHTML = TABS.map(([key, label, fn]) => {
+    const n = loaded ? ` <span class="text-slate-400 font-medium">${parcels.filter(fn).length}</span>` : '';
+    return `<button type="button" role="tab" data-tab="${key}" aria-selected="${key === tab}" tabindex="${key === tab ? 0 : -1}">${FF.esc(label)}${n}</button>`;
+  }).join('');
+}
+
+function filtered() {
+  const fn = TABS.find((t) => t[0] === tab)[2];
+  const q = query.trim().toLowerCase();
+  return parcels.filter(fn).filter((p) => !q ||
+    [p.tracking_number, p.item_name, p.sender_name, p.receiver_name].some((s) => String(s || '').toLowerCase().includes(q)));
+}
+
+function renderState(kind, msg) {
+  const box = $('state');
+  const body = $('rows');
+  $('footer').hidden = true;
+  if (kind === 'loading') {
+    box.hidden = true;
+    body.innerHTML = Array.from({ length: 5 }, () => `<tr>${'<td><div class="skeleton h-5 w-full max-w-[140px]"></div></td>'.repeat(6)}</tr>`).join('');
+    $('table-wrap').setAttribute('aria-busy', 'true');
+    return;
+  }
+  $('table-wrap').removeAttribute('aria-busy');
+  body.innerHTML = '';
+  box.hidden = false;
+  if (kind === 'error') {
+    box.innerHTML = `<div class="empty"><i data-lucide="cloud-off" class="w-8 h-8 mx-auto text-slate-400"></i>
+      <p class="mt-3 font-semibold text-slate-700">Could not load your shipments</p><p class="mt-1">${FF.esc(msg)}</p>
+      <button type="button" class="btn btn-primary btn-sm mt-4" id="retry">Try again</button></div>`;
+    $('retry').addEventListener('click', load);
+  } else if (kind === 'none') {
+    box.innerHTML = `<div class="empty"><i data-lucide="package-open" class="w-8 h-8 mx-auto text-slate-400"></i>
+      <p class="mt-3 font-semibold text-slate-700">No shipments yet</p><p class="mt-1">Parcels you send or receive will show up here.</p>
+      <a href="booking.html" class="btn btn-primary btn-sm mt-4"><i data-lucide="package-plus" class="w-4 h-4"></i> Book your first parcel</a></div>`;
+  } else {
+    box.innerHTML = `<div class="empty"><i data-lucide="search-x" class="w-8 h-8 mx-auto text-slate-400"></i>
+      <p class="mt-3 font-semibold text-slate-700">No matching shipments</p><p class="mt-1">Try a different tab or search term.</p>
+      <button type="button" class="btn btn-outline btn-sm mt-4" id="clear">Clear filters</button></div>`;
+    $('clear').addEventListener('click', () => { tab = 'all'; query = ''; $('search').value = ''; renderAll(); });
+  }
+  FF.icons();
+}
+
+function routeCell(p) {
+  const sent = direction(p) === 'Sent';
+  const chip = `<span class="badge ${sent ? 'badge-blue' : 'badge-slate'} mb-1">${sent ? 'Sent' : 'Received'}</span>`;
+  return `${chip}<div class="text-sm"><span class="${sent ? 'font-semibold' : ''}">${FF.esc(p.sender_name)}</span>
+    <i data-lucide="arrow-right" class="w-3.5 h-3.5 inline-block text-slate-400 mx-0.5 align-[-2px]"></i>
+    <span class="${sent ? '' : 'font-semibold'}">${FF.esc(p.receiver_name)}</span></div>`;
+}
+function paymentCell(p) {
+  if (!p.payment) return `<span class="badge badge-slate">Unpaid</span>`;
+  return `${FF.badge(p.payment.payment_status)}<div class="text-xs text-slate-500 mt-1">${FF.esc(p.payment.payment_method)} &bull; ${FF.peso(p.payment.amount)}</div>`;
+}
+
+function renderRows() {
+  const list = filtered();
+  if (!parcels.length) return renderState('none');
+  if (!list.length) return renderState('empty');
+  $('state').hidden = true;
+  $('table-wrap').removeAttribute('aria-busy');
+  $('rows').innerHTML = list.map((p) => {
+    const n = complaintCount[p.parcel_id] || 0;
+    return `<tr class="cursor-pointer" data-id="${p.parcel_id}">
+      <td><button type="button" class="mono font-semibold text-royal hover:underline" data-action="view" data-id="${p.parcel_id}">${FF.esc(p.tracking_number)}</button></td>
+      <td><div class="font-medium">${FF.esc(p.item_name)}</div><div class="text-xs text-slate-500">${FF.esc(p.weight)} kg</div></td>
+      <td>${routeCell(p)}</td>
+      <td>${paymentCell(p)}</td>
+      <td>${FF.badge(p.current_status)}</td>
+      <td class="text-right"><div class="inline-flex flex-col items-end gap-1">
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-outline btn-sm" data-action="view" data-id="${p.parcel_id}" aria-label="View ${FF.esc(p.tracking_number)}">View</button>
+          <button type="button" class="btn btn-danger-outline btn-sm" data-action="report" data-id="${p.parcel_id}" aria-label="Report an issue with ${FF.esc(p.tracking_number)}">Report Issue</button>
+        </div>
+        ${n ? `<a href="complaints.html" class="text-xs text-slate-500 hover:text-royal hover:underline">${n} complaint${n > 1 ? 's' : ''} filed</a>` : ''}
+      </div></td></tr>`;
+  }).join('');
+  const f = $('footer');
+  f.hidden = false;
+  f.textContent = `Showing ${list.length} of ${parcels.length} shipment${parcels.length === 1 ? '' : 's'}`;
+  FF.icons();
+}
+
+function renderAll() { renderTiles(parcels); renderTabs(); renderRows(); }
+
+// ---------- Events ----------
+$('tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  tab = b.dataset.tab; renderTabs(); if (loaded) renderRows();
+  $('tabs').querySelector(`[data-tab="${tab}"]`).focus();
+});
+$('tabs').addEventListener('keydown', (e) => {
+  const i = TABS.findIndex((t) => t[0] === tab);
+  const n = e.key === 'ArrowRight' ? (i + 1) % TABS.length : e.key === 'ArrowLeft' ? (i + TABS.length - 1) % TABS.length : -1;
+  if (n < 0) return;
+  e.preventDefault(); tab = TABS[n][0]; renderTabs(); if (loaded) renderRows();
+  $('tabs').querySelector(`[data-tab="${tab}"]`).focus();
+});
+$('search').addEventListener('input', FF.debounce((e) => { query = e.target.value; if (loaded) renderRows(); }, 200));
+
+$('rows').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (btn) {
+    e.stopPropagation();
+    const p = byId(btn.dataset.id); if (!p) return;
+    return btn.dataset.action === 'report' ? openReport(p) : openDrawer(p);
+  }
+  if (e.target.closest('a')) return;
+  const tr = e.target.closest('tr[data-id]');
+  if (tr) { const p = byId(tr.dataset.id); if (p) openDrawer(p); }
+});
+
+// ---------- Detail drawer ----------
+function openDrawer(p) {
+  const row = (label, value) => `<div class="flex justify-between gap-4 py-2.5 text-sm"><dt class="text-slate-500 shrink-0">${label}</dt><dd class="font-medium text-right break-words min-w-0">${value}</dd></div>`;
+  const courier = p.courier ? FF.esc(p.courier.name) : '<span class="text-slate-400 font-normal">Not yet assigned</span>';
+  const pay = p.payment
+    ? row('Method', FF.esc(p.payment.payment_method)) + row('Amount', FF.peso(p.payment.amount)) + row('Status', FF.badge(p.payment.payment_status))
+    : `<p class="text-sm text-slate-500 py-2.5">No payment recorded yet.</p>`;
+  const n = complaintCount[p.parcel_id] || 0;
+  const m = FF.openModal({
+    position: 'right',
+    html: `<div class="p-6">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0"><p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Tracking number</p>
+          <h2 class="mono text-xl font-bold break-all">${FF.esc(p.tracking_number)}</h2>
+          <div class="mt-2 flex flex-wrap items-center gap-2">${FF.badge(p.current_status)}<span class="badge ${direction(p) === 'Sent' ? 'badge-blue' : 'badge-slate'}">${direction(p)}</span></div></div>
+        <button type="button" class="p-2 -mr-2 rounded-lg hover:bg-slate-100" data-close aria-label="Close details"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <p class="mt-4 text-sm"><span class="font-semibold">${FF.esc(p.item_name)}</span> <span class="text-slate-500">&bull; ${FF.esc(p.weight)} kg</span></p>
+
+      <h3 class="mt-6 mb-3 text-sm font-bold">Delivery progress</h3>
+      <ol class="list-none m-0 p-0" aria-label="Delivery progress">${FF.stepper(p.current_status)}</ol>
+
+      <h3 class="mt-6 text-sm font-bold">Shipment</h3>
+      <dl class="divide-y divide-slate-100">
+        ${row('From', FF.esc(p.sender_name))}${row('To', FF.esc(p.receiver_name))}
+        ${row('Branch', FF.esc(p.branch_name || '—'))}${row('Courier', courier)}
+        ${row('Booking', `<span class="mono">#${FF.esc(p.booking_id)}</span> ${FF.badge(p.booking_status)}`)}
+      </dl>
+
+      <h3 class="mt-6 text-sm font-bold">Payment</h3>
+      <dl class="divide-y divide-slate-100">${pay}</dl>
+
+      <div class="mt-8 flex flex-wrap items-center gap-3">
+        <button type="button" class="btn btn-danger-outline" id="d-report"><i data-lucide="message-square-warning" class="w-4 h-4"></i> Report Issue</button>
+        <button type="button" class="btn btn-outline" data-close>Close</button>
+      </div>
+      ${n ? `<p class="mt-3 text-xs text-slate-500">You have filed ${n} complaint${n > 1 ? 's' : ''} about this parcel. <a class="text-royal hover:underline" href="complaints.html">View in Complaints</a></p>` : ''}
+    </div>`,
+  });
+  m.panel.setAttribute('aria-label', 'Shipment details');
+  m.panel.querySelector('#d-report').addEventListener('click', () => { m.close(); openReport(p); });
+}
+
+// ---------- Report Issue modal ----------
+function openReport(p) {
+  const m = FF.openModal({
+    wide: true,
+    html: `<form id="rf" novalidate>
+      <div class="flex items-start gap-4">
+        <div class="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 grid place-items-center shrink-0"><i data-lucide="message-square-warning" class="w-5 h-5"></i></div>
+        <div><h2 class="text-lg font-bold" id="rf-title">Report an issue</h2><p class="text-sm text-slate-500">Our customer service desk will review your complaint.</p></div>
+      </div>
+      <div class="mt-5 space-y-4">
+        <div><label class="label" for="rf-parcel">Parcel</label>
+          <input id="rf-parcel" class="field mono" readonly value="${FF.esc(p.tracking_number)} — ${FF.esc(p.item_name)}"><p class="err" data-err="parcel_id"></p></div>
+        <div><label class="label" for="rf-category">Category</label>
+          <select id="rf-category" class="field" required><option value="">Select a category…</option>${CATEGORIES.map((c) => `<option>${FF.esc(c)}</option>`).join('')}</select><p class="err" data-err="category"></p></div>
+        <div><label class="label" for="rf-desc">What went wrong?</label>
+          <textarea id="rf-desc" class="field" required maxlength="2000" placeholder="Describe the problem, e.g. the parcel arrived damaged or the courier never showed up."></textarea>
+          <div class="flex justify-between"><p class="err" data-err="description"></p><span class="text-xs text-slate-400 ml-auto mt-1" id="rf-count">0 / 2000</span></div></div>
+      </div>
+      <div class="mt-6 flex justify-end gap-3">
+        <button type="button" class="btn btn-outline" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary" id="rf-submit">Submit complaint</button>
+      </div></form>`,
+  });
+  m.panel.setAttribute('aria-labelledby', 'rf-title');
+  const f = m.panel.querySelector('#rf');
+  const cat = m.panel.querySelector('#rf-category'), desc = m.panel.querySelector('#rf-desc');
+  cat.focus();
+  desc.addEventListener('input', () => { m.panel.querySelector('#rf-count').textContent = `${desc.value.length} / 2000`; });
+
+  const clear = () => f.querySelectorAll('.err').forEach((e) => { e.classList.remove('show'); e.textContent = ''; });
+  const markBad = (input, msg, errField) => {
+    if (input) { input.classList.add('invalid'); input.setAttribute('aria-invalid', 'true'); }
+    const er = f.querySelector(`[data-err="${errField}"]`); if (er) { er.textContent = msg; er.classList.add('show'); }
+  };
+  [cat, desc].forEach((i) => i.addEventListener('input', () => { i.classList.remove('invalid'); i.removeAttribute('aria-invalid'); }));
+
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clear(); [cat, desc].forEach((i) => i.classList.remove('invalid'));
+    let bad = null;
+    if (!cat.value) { markBad(cat, 'Choose a category.', 'category'); bad = cat; }
+    if (!desc.value.trim()) { markBad(desc, 'Please describe the issue.', 'description'); bad = bad || desc; }
+    if (bad) return bad.focus();
+
+    const btn = f.querySelector('#rf-submit');
+    btn.disabled = true;
+    try {
+      const c = await FF.api.post('/complaints', {
+        customer_id: session.customer_id, parcel_id: p.parcel_id, category: cat.value, description: desc.value.trim(),
+      }, { silent: true });
+      m.close(true);
+      complaintCount[p.parcel_id] = (complaintCount[p.parcel_id] || 0) + 1;
+      if (loaded) renderRows();
+      FF.toast(`Complaint #${c.complaint_id} for ${p.tracking_number} was sent to our CSR desk. `, 'success', { title: 'Complaint submitted', duration: 9000 });
+      // FF.toast is text-only: append a plain link to the toast that was just created
+      const body = document.querySelector('#ff-toasts .toast:last-child .min-w-0');
+      if (body) {
+        const a = document.createElement('a');
+        a.href = 'complaints.html'; a.textContent = 'View in Complaints';
+        a.className = 'block text-sm font-semibold text-royal hover:underline mt-1';
+        body.appendChild(a);
+      }
+    } catch (err) {
+      btn.disabled = false;
+      if (err.status === 422) {
+        const fe = FF.fieldErrors(err);
+        if (fe.category) markBad(cat, fe.category, 'category');
+        if (fe.description) markBad(desc, fe.description, 'description');
+        if (fe.parcel_id) markBad(null, fe.parcel_id, 'parcel_id');
+        if (fe.customer_id) FF.toast(fe.customer_id, 'error', { title: 'Account problem' });
+        (fe.category ? cat : fe.description ? desc : cat).focus();
+      } else {
+        FF.toast(err.message, err.status === 404 ? 'error' : err.status === 409 ? 'warning' : 'error', { title: err.status ? `Request failed (${err.status})` : 'Server unreachable' });
+      }
+    }
+  });
+}
+
+load();
+</script></body></html>

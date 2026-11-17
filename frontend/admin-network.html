@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Branches &amp; Staff • Freight-Flow Express</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="css/ff.css"><script src="js/api.js"></script>
+<style>
+  .perm-chip { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .perm-admin { background: #0F172A; color: #fff; }
+  .perm-staff { background: #fff; color: #475569; border: 1px solid #CBD5E1; }
+  .tabs button:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
+</style>
+</head>
+<body class="text-slate-900 antialiased">
+<div id="ff-sidebar"></div>
+<div class="lg:pl-64 min-h-screen flex flex-col"><div id="ff-topbar"></div>
+<main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
+
+  <div class="mb-6">
+    <h1 class="text-3xl font-extrabold tracking-tight">Manage your network.</h1>
+    <p class="text-slate-500 mt-1">Keep branch details, staff assignments, and access levels up to date.</p>
+  </div>
+
+  <div class="tabs mb-6" role="tablist" aria-label="Network sections">
+    <button type="button" role="tab" id="tab-branches" aria-controls="panel-branches" aria-selected="true" data-tab="branches">Branches</button>
+    <button type="button" role="tab" id="tab-staff" aria-controls="panel-staff" aria-selected="false" data-tab="staff" tabindex="-1">Staff</button>
+  </div>
+
+  <!-- ================= Branches ================= -->
+  <section id="panel-branches" role="tabpanel" aria-labelledby="tab-branches" class="card overflow-hidden">
+    <div class="p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4 border-b border-line">
+      <div>
+        <h2 class="text-lg font-bold">Branches Directory</h2>
+        <p id="bCount" class="text-sm text-slate-500 mt-0.5">&nbsp;</p>
+      </div>
+      <button type="button" id="addBranch" class="btn btn-primary"><i data-lucide="plus" class="w-4 h-4"></i> Add branch</button>
+    </div>
+    <div id="bNote" class="hidden" role="alert"></div>
+    <div class="overflow-x-auto">
+      <table class="ledger w-full min-w-[900px]">
+        <thead><tr>
+          <th scope="col">ID</th><th scope="col">Branch name</th><th scope="col">Address</th><th scope="col">Contact</th>
+          <th scope="col" class="!text-right">Staff</th><th scope="col" class="!text-right">Bookings</th><th scope="col" class="!text-right">Actions</th>
+        </tr></thead>
+        <tbody id="bBody"></tbody>
+      </table>
+    </div>
+    <div class="px-6 py-3 text-xs text-slate-500 border-t border-line">Deletion is restricted while staff or active bookings are still assigned to a branch.</div>
+  </section>
+
+  <!-- ================= Staff ================= -->
+  <section id="panel-staff" role="tabpanel" aria-labelledby="tab-staff" class="card overflow-hidden" hidden>
+    <div class="p-5 sm:p-6 border-b border-line">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold">Staff Management</h2>
+          <p class="text-sm text-slate-500 mt-0.5">Branch assignments &amp; access control</p>
+        </div>
+        <button type="button" id="addStaff" class="btn btn-primary"><i data-lucide="user-plus" class="w-4 h-4"></i> Add staff</button>
+      </div>
+      <div class="flex flex-wrap items-end gap-3 mt-5">
+        <div class="relative">
+          <label for="sSearch" class="sr-only">Search staff by name</label>
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <input id="sSearch" type="search" class="field pl-9 w-60" placeholder="Search by name" autocomplete="off">
+        </div>
+        <div><label for="sBranch" class="sr-only">Filter by branch</label>
+          <select id="sBranch" class="field w-auto"><option value="">All branches</option></select></div>
+        <div><label for="sRole" class="sr-only">Filter by role</label>
+          <select id="sRole" class="field w-auto">
+            <option value="">All roles</option><option value="Manager">Manager</option><option value="Courier">Courier</option>
+            <option value="Customer Service Representative">Customer Service Representative</option>
+          </select></div>
+      </div>
+    </div>
+    <div id="sNote" class="hidden" role="alert"></div>
+    <div class="overflow-x-auto">
+      <table class="ledger w-full min-w-[820px]">
+        <thead><tr>
+          <th scope="col">ID</th><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Permission</th>
+          <th scope="col">Branch</th><th scope="col" class="!text-right">Actions</th>
+        </tr></thead>
+        <tbody id="sBody"></tbody>
+      </table>
+    </div>
+    <div class="px-6 py-3 text-xs text-slate-500 border-t border-line" id="sCount" aria-live="polite"></div>
+  </section>
+</main></div>
+
+<script>
+const session = FF.mountShell({ page: 'admin-network.html', roles: ['Manager'] });
+const $ = FF.$, esc = FF.esc;
+
+const state = { branches: [], staff: [], bookingsByBranch: {}, flash: null, loaded: false };
+const ROLE_LABEL = { Manager: 'Manager', Courier: 'Courier', 'Customer Service Representative': 'CSR' };
+const ROLE_BADGE = { Manager: 'badge-blue', Courier: 'badge-slate', 'Customer Service Representative': 'badge-blue' };
+
+const skelRows = (cols) => `<tr><td colspan="${cols}"><div class="skeleton h-6 mb-3"></div><div class="skeleton h-6 mb-3"></div><div class="skeleton h-6"></div></td></tr>`;
+const branchName = (id) => (state.branches.find((b) => b.branch_id === id) || {}).branch_name || `Branch #${id}`;
+
+// ------------------------------------------------------------------ tabs
+function selectTab(name, focus) {
+  if (!['branches', 'staff'].includes(name)) name = 'branches';
+  document.querySelectorAll('[role="tab"]').forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1;
+    if (on && focus) t.focus();
+  });
+  $('panel-branches').hidden = name !== 'branches';
+  $('panel-staff').hidden = name !== 'staff';
+  if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+}
+document.querySelector('.tabs').addEventListener('click', (e) => { const t = e.target.closest('[data-tab]'); if (t) selectTab(t.dataset.tab); });
+document.querySelector('.tabs').addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  selectTab(document.querySelector('[role="tab"][aria-selected="true"]').dataset.tab === 'branches' ? 'staff' : 'branches', true);
+});
+window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
+
+// ------------------------------------------------------------------ inline conflict notes
+function showNote(id, message) {
+  const el = $(id);
+  el.className = 'mx-5 sm:mx-6 mt-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm flex items-start gap-3';
+  el.innerHTML = `<i data-lucide="triangle-alert" class="w-5 h-5 shrink-0 text-amber-600"></i>
+    <div class="flex-1"><strong>Can't delete this record.</strong> ${esc(message)}</div>
+    <button type="button" class="p-1 -m-1 rounded hover:bg-amber-100" data-dismiss="${id}" aria-label="Dismiss message"><i data-lucide="x" class="w-4 h-4"></i></button>`;
+  FF.icons();
+}
+const hideNote = (id) => { $(id).className = 'hidden'; $(id).innerHTML = ''; };
+document.addEventListener('click', (e) => { const d = e.target.closest('[data-dismiss]'); if (d) hideNote(d.dataset.dismiss); });
+
+// ------------------------------------------------------------------ data
+async function load() {
+  $('bBody').innerHTML = skelRows(7); $('sBody').innerHTML = skelRows(6);
+  try {
+    const [br, st, dash] = await Promise.all([
+      FF.apiFetch('/branches', { query: { limit: 100 }, silent: true }),
+      FF.apiFetch('/staff', { query: { limit: 100 }, silent: true }),
+      FF.apiFetch('/dashboard', { silent: true }).catch(() => null),
+    ]);
+    state.branches = br.data; state.staff = st.data;
+    state.bookingsByBranch = Object.fromEntries(((dash && dash.bookings_by_branch) || []).map((b) => [b.branch_id, b.bookings]));
+    state.loaded = true;
+  } catch (e) {
+    const err = `<tr><td colspan="7"><div class="empty"><i data-lucide="triangle-alert" class="w-6 h-6 mx-auto mb-2 text-amber-500"></i><div>${esc(e.message)}</div>
+      <button type="button" class="btn btn-outline btn-sm mt-3" data-retry><i data-lucide="rotate-cw" class="w-4 h-4"></i> Retry</button></div></td></tr>`;
+    $('bBody').innerHTML = err; $('sBody').innerHTML = err; $('bCount').textContent = ''; $('sCount').textContent = '';
+    FF.icons(); return;
+  }
+  renderBranchFilter(); renderBranches(); renderStaff();
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-retry]')) load(); });
+
+function afterMutation(flashKey) {
+  state.flash = flashKey;
+  return load();
+}
+
+// ------------------------------------------------------------------ branches
+const actionBtns = (kind, id, label, extra = '') => `<div class="inline-flex gap-2 justify-end">
+  <button type="button" class="btn btn-outline btn-sm" data-edit="${kind}:${id}" aria-label="Edit ${esc(label)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Edit</button>
+  <button type="button" class="btn btn-danger-outline btn-sm" data-del="${kind}:${id}" aria-label="Delete ${esc(label)}" ${extra}><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</button></div>`;
+
+function renderBranches() {
+  const rows = state.branches;
+  $('bCount').textContent = `${rows.length} branch${rows.length === 1 ? '' : 'es'} in the network`;
+  if (!rows.length) { $('bBody').innerHTML = '<tr><td colspan="7" class="empty">No branches yet. Add your first branch to get started.</td></tr>'; return; }
+  $('bBody').innerHTML = rows.map((b) => {
+    const staffN = state.staff.filter((s) => s.branch_id === b.branch_id).length;
+    return `<tr class="${state.flash === 'b' + b.branch_id ? 'flash' : ''}">
+      <td class="font-mono font-medium">${b.branch_id}</td>
+      <td class="font-semibold">${esc(b.branch_name)}</td>
+      <td class="text-slate-600">${esc(b.address)}</td>
+      <td class="text-slate-600">${esc(b.contact_info)}</td>
+      <td class="text-right font-mono">${staffN}</td>
+      <td class="text-right font-mono">${state.bookingsByBranch[b.branch_id] || 0}</td>
+      <td class="text-right">${actionBtns('b', b.branch_id, b.branch_name)}</td></tr>`;
+  }).join('');
+  state.flash = state.flash && state.flash[0] === 'b' ? null : state.flash;
+  FF.icons();
+}
+
+// ------------------------------------------------------------------ staff
+function renderBranchFilter() {
+  const cur = $('sBranch').value;
+  $('sBranch').innerHTML = '<option value="">All branches</option>' + state.branches.map((b) => `<option value="${b.branch_id}">${esc(b.branch_name)}</option>`).join('');
+  $('sBranch').value = state.branches.some((b) => String(b.branch_id) === cur) ? cur : '';
+}
+
+function renderStaff() {
+  const q = $('sSearch').value.trim().toLowerCase(), br = $('sBranch').value, role = $('sRole').value;
+  const rows = state.staff.filter((s) => (!br || String(s.branch_id) === br) && (!role || s.role === role) && (!q || s.name.toLowerCase().includes(q)));
+  $('sCount').textContent = `Showing ${rows.length} of ${state.staff.length} staff members`;
+  if (!rows.length) { $('sBody').innerHTML = `<tr><td colspan="6" class="empty">${state.staff.length ? 'No staff match your filters.' : 'No staff yet. Add your first team member.'}</td></tr>`; return; }
+  $('sBody').innerHTML = rows.map((s) => {
+    const me = s.staff_id === session.staff_id;
+    return `<tr class="${state.flash === 's' + s.staff_id ? 'flash' : ''}">
+      <td class="font-mono font-medium">${s.staff_id}</td>
+      <td class="font-semibold">${esc(s.name)}${me ? ' <span class="text-xs font-medium text-slate-400">(you)</span>' : ''}</td>
+      <td><span class="badge ${ROLE_BADGE[s.role] || 'badge-slate'}" title="${esc(s.role)}">${esc(ROLE_LABEL[s.role] || s.role)}</span></td>
+      <td><span class="perm-chip ${s.permission_level === 'Admin' ? 'perm-admin' : 'perm-staff'}">${esc(s.permission_level)}</span></td>
+      <td class="text-slate-600">${esc(branchName(s.branch_id))}</td>
+      <td class="text-right">${actionBtns('s', s.staff_id, s.name, me ? 'disabled title="You cannot delete the account you are signed in as"' : '')}</td></tr>`;
+  }).join('');
+  state.flash = state.flash && state.flash[0] === 's' ? null : state.flash;
+  FF.icons();
+}
+['sSearch'].forEach((id) => $(id).addEventListener('input', FF.debounce(renderStaff, 150)));
+['sBranch', 'sRole'].forEach((id) => $(id).addEventListener('change', renderStaff));
+
+// ------------------------------------------------------------------ forms
+function fieldHtml({ id, label, key, input, hint }) {
+  return `<div class="mb-4"><label class="label" for="${id}">${label}<span class="key">${key}</span></label>${input}
+    ${hint ? `<div class="text-xs text-slate-400 mt-1">${hint}</div>` : ''}<div class="err" id="err-${key}" role="alert"></div></div>`;
+}
+function showErrors(panel, errs) {
+  panel.querySelectorAll('.err').forEach((e) => { e.classList.remove('show'); e.textContent = ''; });
+  panel.querySelectorAll('.field').forEach((f) => f.classList.remove('invalid'));
+  let first = null;
+  Object.entries(errs).forEach(([field, issue]) => {
+    const err = panel.querySelector('#err-' + field), inp = panel.querySelector(`[name="${field}"]`);
+    if (err) { err.textContent = issue; err.classList.add('show'); }
+    if (inp) { inp.classList.add('invalid'); inp.setAttribute('aria-invalid', 'true'); first = first || inp; }
+  });
+  if (first) first.focus();
+}
+
+function openForm({ title, intro, submitLabel, fields, onSubmit }) {
+  const m = FF.openModal({
+    wide: true,
+    html: `<form novalidate>
+      <div class="flex items-start justify-between gap-3 mb-1">
+        <h2 class="text-lg font-bold" id="formTitle">${esc(title)}</h2>
+        <button type="button" class="p-2 -mr-2 -mt-1 rounded-lg hover:bg-slate-100" data-close aria-label="Close"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <p class="text-sm text-slate-500 mb-5">${esc(intro)}</p>
+      ${fields}
+      <div class="mt-6 flex justify-end gap-3">
+        <button type="button" class="btn btn-outline" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">${esc(submitLabel)}</button>
+      </div></form>`,
+  });
+  m.panel.setAttribute('aria-labelledby', 'formTitle');
+  const form = m.panel.querySelector('form'), submit = form.querySelector('[type="submit"]');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showErrors(m.panel, {});
+    const data = Object.fromEntries(new FormData(form).entries());
+    submit.disabled = true; submit.setAttribute('aria-busy', 'true');
+    try { await onSubmit(data, m); }
+    catch (err) {
+      submit.disabled = false; submit.setAttribute('aria-busy', 'false');
+      if (err instanceof FF.ApiError && err.status === 422) showErrors(m.panel, FF.fieldErrors(err));
+    }
+  });
+  return m;
+}
+
+function branchForm(b) {
+  const v = (k) => esc(b ? b[k] : '');
+  openForm({
+    title: b ? `Edit branch #${b.branch_id}` : 'Add branch',
+    intro: b ? 'Update this branch\'s details.' : 'Create a new branch in the Freight-Flow network.',
+    submitLabel: b ? 'Save changes' : 'Create branch',
+    fields:
+      fieldHtml({ id: 'f-bn', label: 'Branch name', key: 'branch_name', input: `<input id="f-bn" name="branch_name" class="field" maxlength="50" required data-autofocus value="${v('branch_name')}">` }) +
+      fieldHtml({ id: 'f-ba', label: 'Address', key: 'address', input: `<input id="f-ba" name="address" class="field" maxlength="200" required value="${v('address')}">` }) +
+      fieldHtml({ id: 'f-bc', label: 'Contact info', key: 'contact_info', input: `<input id="f-bc" name="contact_info" class="field" maxlength="50" required value="${v('contact_info')}">`, hint: 'Phone number or email address.' }),
+    async onSubmit(data, m) {
+      const body = { branch_name: data.branch_name.trim(), address: data.address.trim(), contact_info: data.contact_info.trim() };
+      const saved = b
+        ? await FF.apiFetch('/branches/' + b.branch_id, { method: 'PUT', body })
+        : await FF.apiFetch('/branches', { method: 'POST', body });
+      m.close(true);
+      FF.toast(b ? `${saved.branch_name} updated.` : `${saved.branch_name} added (branch #${saved.branch_id}).`, 'success');
+      await afterMutation('b' + saved.branch_id);
+    },
+  });
+}
+
+function staffForm(s) {
+  if (!state.branches.length) { FF.toast('Add a branch first; every staff member must belong to one.', 'warning', { title: 'No branches yet' }); return; }
+  const opt = (val, label, cur) => `<option value="${esc(val)}" ${cur === val ? 'selected' : ''}>${esc(label)}</option>`;
+  openForm({
+    title: s ? `Edit staff #${s.staff_id}` : 'Add staff',
+    intro: s ? 'Update this team member\'s assignment and access.' : 'Create a team member and assign them to a branch.',
+    submitLabel: s ? 'Save changes' : 'Create staff',
+    fields:
+      fieldHtml({ id: 'f-sn', label: 'Full name', key: 'name', input: `<input id="f-sn" name="name" class="field" maxlength="100" required data-autofocus value="${esc(s ? s.name : '')}">` }) +
+      fieldHtml({ id: 'f-sb', label: 'Assigned branch', key: 'branch_id', input: `<select id="f-sb" name="branch_id" class="field">${state.branches.map((b) => `<option value="${b.branch_id}" ${s && s.branch_id === b.branch_id ? 'selected' : ''}>${esc(b.branch_name)}</option>`).join('')}</select>` }) +
+      `<div class="grid sm:grid-cols-2 gap-x-4">` +
+      fieldHtml({ id: 'f-sr', label: 'Role', key: 'role', input: `<select id="f-sr" name="role" class="field">${opt('Manager', 'Manager', s && s.role)}${opt('Courier', 'Courier', s ? s.role : 'Courier')}${opt('Customer Service Representative', 'Customer Service Rep.', s && s.role)}</select>` }) +
+      fieldHtml({ id: 'f-sp', label: 'Permission level', key: 'permission_level', input: `<select id="f-sp" name="permission_level" class="field">${opt('Staff', 'Staff', s ? s.permission_level : 'Staff')}${opt('Admin', 'Admin', s && s.permission_level)}</select>` }) + `</div>`,
+    async onSubmit(data, m) {
+      const body = { branch_id: Number(data.branch_id), name: data.name.trim(), role: data.role, permission_level: data.permission_level };
+      const saved = s
+        ? await FF.apiFetch('/staff/' + s.staff_id, { method: 'PUT', body })
+        : await FF.apiFetch('/staff', { method: 'POST', body });
+      m.close(true);
+      FF.toast(s ? `${saved.name} updated.` : `${saved.name} added (staff #${saved.staff_id}).`, 'success');
+      await afterMutation('s' + saved.staff_id);
+    },
+  });
+}
+
+$('addBranch').addEventListener('click', () => branchForm(null));
+$('addStaff').addEventListener('click', () => staffForm(null));
+
+// ------------------------------------------------------------------ edit / delete
+document.addEventListener('click', async (e) => {
+  const ed = e.target.closest('[data-edit]'), del = e.target.closest('[data-del]');
+  if (ed) {
+    const [kind, id] = ed.dataset.edit.split(':');
+    if (kind === 'b') branchForm(state.branches.find((b) => b.branch_id === Number(id)));
+    else staffForm(state.staff.find((s) => s.staff_id === Number(id)));
+  }
+  if (del && !del.disabled) {
+    const [kind, id] = del.dataset.del.split(':');
+    const isB = kind === 'b';
+    const rec = isB ? state.branches.find((b) => b.branch_id === Number(id)) : state.staff.find((s) => s.staff_id === Number(id));
+    if (!rec) return;
+    const label = isB ? rec.branch_name : rec.name;
+    const ok = await FF.confirm({
+      danger: true, title: `Delete ${isB ? 'branch' : 'staff member'}?`, confirmLabel: 'Delete',
+      message: isB
+        ? `"${label}" will be removed from the network. This is blocked while staff or active bookings are still assigned to it.`
+        : `${label} will be removed. This is blocked while they have active deliveries or open complaints.`,
+    });
+    if (!ok) return;
+    const noteId = isB ? 'bNote' : 'sNote';
+    try {
+      await FF.apiFetch(`/${isB ? 'branches' : 'staff'}/${id}`, { method: 'DELETE' });
+      hideNote(noteId);
+      FF.toast(`${label} deleted.`, 'success');
+      await afterMutation(null);
+    } catch (err) {
+      if (err instanceof FF.ApiError && err.status === 409) { showNote(noteId, err.message); await afterMutation(kind + id); }
+    }
+  }
+});
+
+// ------------------------------------------------------------------ init
+selectTab(location.hash.slice(1));
+load();
+</script>
+</body>
+</html>

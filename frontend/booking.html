@@ -10,140 +10,42 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
-          },
-          colors: {
-            navy: '#0F172A',
-            royal: '#2563EB',
-            slatebg: '#F8FAFC',
-            line: '#E2E8F0',
-          },
-        },
-      },
-    };
-  </script>
+  <link rel="stylesheet" href="css/ff.css" />
+  <script src="js/api.js"></script>
 
   <style>
-    body { background: #F8FAFC; font-family: 'Inter', sans-serif; }
-    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: 16px; }
-
-    /* Semantic status badges */
-    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
-    .badge::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
-    .badge-emerald { color: #047857; background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.35); }
-    .badge-amber   { color: #B45309; background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.40); }
-    .badge-rose    { color: #B91C1C; background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.35); }
-
-    .field { width: 100%; border: 1px solid #CBD5E1; border-radius: 10px; padding: 10px 12px; font-size: 14px; background: #fff; color: #0F172A; transition: border-color .15s, box-shadow .15s; }
-    .field:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 3px rgba(37,99,235,.18); }
-    .field[readonly] { background: #F1F5F9; color: #475569; }
-    .field.invalid { border-color: #EF4444; box-shadow: 0 0 0 3px rgba(239,68,68,.12); }
-    .err { display: none; color: #B91C1C; font-size: 12px; margin-top: 4px; }
-    .err.show { display: block; }
-
-    /* Payment method radio cards */
+    /* Payment method radio cards (page-specific) */
     .pay-card { display: flex; align-items: center; gap: 10px; border: 1px solid #CBD5E1; border-radius: 12px; padding: 12px; cursor: pointer; transition: all .15s; background: #fff; }
     .pay-card:hover { border-color: #93C5FD; }
     .peer:checked + .pay-card { border-color: #2563EB; background: #EFF6FF; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
     .peer:focus-visible + .pay-card { box-shadow: 0 0 0 3px rgba(37,99,235,.35); }
-
-    /* Vertical stepper */
-    .step { position: relative; padding-left: 44px; padding-bottom: 22px; }
-    .step:last-child { padding-bottom: 0; }
-    .step::before { content: ''; position: absolute; left: 13px; top: 28px; bottom: -2px; width: 2px; background: #E2E8F0; }
-    .step:last-child::before { display: none; }
-    .step.done::before { background: #10B981; }
-    .step-dot { position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; background: #F1F5F9; color: #94A3B8; border: 2px solid #E2E8F0; }
-    .step.done .step-dot { background: #10B981; border-color: #10B981; color: #fff; }
-    .step.current .step-dot { background: #FEF3C7; border-color: #F59E0B; color: #B45309; box-shadow: 0 0 0 4px rgba(245,158,11,.18); }
-    .step.current.final .step-dot { background: #10B981; border-color: #10B981; color: #fff; box-shadow: 0 0 0 4px rgba(16,185,129,.18); }
-    .step .step-title { font-weight: 600; font-size: 14px; color: #94A3B8; }
-    .step.done .step-title, .step.current .step-title { color: #0F172A; }
-    .step .step-sub { font-size: 12px; color: #94A3B8; }
-    .step.done .step-sub, .step.current .step-sub { color: #64748B; }
-
-    .nav-link { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 999px; color: #CBD5E1; font-size: 14px; font-weight: 500; transition: background .15s, color .15s; }
-    .nav-link:hover { background: rgba(255,255,255,.07); color: #fff; }
-    .nav-link.active { background: #2563EB; color: #fff; }
-
-    .role-pill a { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #475569; }
-    .role-pill a:hover { color: #0F172A; }
-    .role-pill a.active { background: #2563EB; color: #fff; }
-
-    @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-    .toast { animation: toast-in .25s ease-out; }
-    @keyframes pulse-ring { 0%,100% { box-shadow: 0 0 0 4px rgba(245,158,11,.18); } 50% { box-shadow: 0 0 0 8px rgba(245,158,11,.06); } }
-    .step.current:not(.final) .step-dot { animation: pulse-ring 2s ease-in-out infinite; }
-    @media (prefers-reduced-motion: reduce) { .step.current .step-dot, .toast { animation: none !important; } }
   </style>
 </head>
 
 <body class="text-slate-900 antialiased">
 
-  <!-- ============ Sidebar (Customer) ============ -->
-  <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full lg:translate-x-0 transition-transform bg-navy text-white flex flex-col">
-    <div class="px-6 py-6 flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-royal grid place-items-center"><i data-lucide="truck" class="w-5 h-5"></i></div>
-      <div class="leading-tight">
-        <div class="font-extrabold tracking-tight">FREIGHT—FLOW</div>
-        <div class="text-[11px] tracking-[0.2em] text-slate-400">EXPRESS</div>
-      </div>
-    </div>
-
-    <nav class="px-4 mt-2 space-y-1 flex-1" aria-label="Customer navigation">
-      <a href="shipments.html" class="nav-link"><i data-lucide="package-search" class="w-5 h-5"></i> My Shipments</a>
-      <a href="booking.html" class="nav-link active" aria-current="page"><i data-lucide="package-plus" class="w-5 h-5"></i> New Booking</a>
-      <a href="complaints.html" class="nav-link"><i data-lucide="message-square-warning" class="w-5 h-5"></i> Complaints</a>
-      <a href="profile.html" class="nav-link"><i data-lucide="user-round" class="w-5 h-5"></i> Profile</a>
-    </nav>
-
-    <div class="px-4 pb-6">
-      <a href="index.html" class="nav-link"><i data-lucide="log-out" class="w-5 h-5"></i> Sign out</a>
-    </div>
-  </aside>
-  <div id="scrim" class="fixed inset-0 z-30 bg-slate-900/50 hidden lg:hidden"></div>
+  <div id="ff-sidebar"></div>
 
   <div class="lg:pl-64 min-h-screen flex flex-col">
-
-    <!-- ============ Top bar ============ -->
-    <header class="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-line">
-      <div class="px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
-        <button id="menuBtn" class="lg:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
-          <i data-lucide="menu" class="w-5 h-5"></i>
-        </button>
-
-        <!-- Demo role switcher -->
-        <div class="role-pill flex items-center gap-1 bg-slate-100 border border-line rounded-full p-1" role="navigation" aria-label="Demo role switcher">
-          <a href="booking.html" class="active" aria-current="page">Customer</a>
-          <a href="payments.html">Manager</a>
-          <a href="courier.html">Courier</a>
-          <a href="complaints.html">CSR</a>
-        </div>
-
-        <a href="profile.html" class="flex items-center gap-3 rounded-full pl-1 pr-3 py-1 hover:bg-slate-100">
-          <span class="w-8 h-8 rounded-full bg-royal text-white grid place-items-center text-xs font-bold">MS</span>
-          <span class="hidden sm:block text-sm font-semibold">Maria Clara Santos</span>
-        </a>
-      </div>
-    </header>
+    <div id="ff-topbar"></div>
 
     <main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
 
       <!-- Header -->
       <div class="flex flex-wrap items-start justify-between gap-3 mb-8">
         <div>
-          <h1 class="text-3xl font-extrabold tracking-tight">Let's get it moving, Maria.</h1>
+          <h1 id="greeting" class="text-3xl font-extrabold tracking-tight">Let's get it moving, Maria.</h1>
           <p class="text-slate-500 mt-1">Book a parcel, pay once, and follow it all the way to the doorstep.</p>
         </div>
         <span class="inline-flex items-center gap-2 bg-white border border-line rounded-full px-4 py-2 text-sm font-medium text-slate-700">
-          <i data-lucide="building-2" class="w-4 h-4 text-royal"></i> Retail Account • Cagayan de Oro Main
+          <i data-lucide="building-2" class="w-4 h-4 text-royal"></i> <span id="accountBadge">Retail Account • Cagayan de Oro Main</span>
         </span>
+      </div>
+
+      <!-- Load error -->
+      <div id="loadError" class="hidden mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 flex items-center justify-between gap-4" role="alert">
+        <span>We couldn't load branches and receivers from the server.</span>
+        <button type="button" id="retryLoad" class="btn btn-outline btn-sm">Retry</button>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
@@ -162,10 +64,11 @@
               <div class="flex-1 text-sm">
                 <p class="font-semibold text-emerald-900">Booking <span id="resBooking" class="font-mono"></span> confirmed</p>
                 <div class="mt-2 flex flex-wrap gap-2 items-center">
-                  <span class="text-xs text-slate-500">booking_status</span><span id="resBookingStatus" class="badge badge-emerald">Confirmed</span>
+                  <span class="text-xs text-slate-500">booking_status</span><span class="badge badge-emerald">Confirmed</span>
                   <span class="text-xs text-slate-500 ml-2">payment_status</span><span class="badge badge-emerald">Paid</span>
                 </div>
-                <p class="mt-2 text-slate-600">Tracking number <span id="resTrk" class="font-mono font-semibold text-slate-900"></span></p>
+                <p class="mt-2 text-slate-600">Tracking number <span id="resTrk" class="font-mono font-semibold text-slate-900"></span>
+                  • <a href="shipments.html" class="text-royal font-semibold hover:underline">View in My Shipments</a></p>
               </div>
             </div>
           </div>
@@ -178,12 +81,9 @@
                 <span class="font-mono text-xs font-semibold text-royal bg-blue-50 rounded-md px-2 py-1">STEP 01</span>
                 <span class="font-semibold">Originating Branch</span>
               </legend>
-              <label for="branch_id" class="block text-sm font-medium text-slate-700 mb-1">Branch <span class="font-mono text-xs text-slate-400">branch_id</span></label>
+              <label for="branch_id" class="label">Branch <span class="key">branch_id</span></label>
               <select id="branch_id" name="branch_id" class="field" required>
-                <option value="">Select a branch…</option>
-                <option value="12" data-name="Cagayan de Oro Main" selected>12 - Cagayan de Oro Main (Velez St)</option>
-                <option value="14" data-name="Limketkai Hub">14 - Limketkai Hub</option>
-                <option value="15" data-name="Carmen Branch">15 - Carmen Branch</option>
+                <option value="">Loading branches…</option>
               </select>
               <p class="err" data-err="branch_id">Choose where the parcel will be dropped off.</p>
             </fieldset>
@@ -196,27 +96,24 @@
               </legend>
               <div class="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label for="sender_id" class="block text-sm font-medium text-slate-700 mb-1">Sender <span class="font-mono text-xs text-slate-400">sender_id</span></label>
-                  <input id="sender_id" class="field" value="Maria Clara Santos" readonly aria-describedby="senderHint" />
-                  <p id="senderHint" class="text-xs text-slate-400 mt-1 font-mono">sender_id = 502</p>
+                  <label for="sender_name" class="label">Sender <span class="key">sender_id</span></label>
+                  <input id="sender_name" class="field" value="Loading…" readonly aria-describedby="senderHint" />
+                  <p id="senderHint" class="text-xs text-slate-400 mt-1 font-mono">sender_id = …</p>
                 </div>
                 <div>
-                  <label for="receiver_id" class="block text-sm font-medium text-slate-700 mb-1">Receiver <span class="font-mono text-xs text-slate-400">receiver_id</span></label>
+                  <label for="receiver_id" class="label">Receiver <span class="key">receiver_id</span></label>
                   <select id="receiver_id" name="receiver_id" class="field" required>
-                    <option value="">Select a receiver…</option>
-                    <option value="509" selected>Juan Dela Cruz</option>
-                    <option value="511">Ana Lucia Reyes</option>
-                    <option value="514">Kagay-an Tech Hub</option>
+                    <option value="">Loading receivers…</option>
                   </select>
                   <p class="err" data-err="receiver_id">Choose who will receive the parcel.</p>
                 </div>
                 <div class="sm:col-span-2">
-                  <label for="item_name" class="block text-sm font-medium text-slate-700 mb-1">Item name <span class="font-mono text-xs text-slate-400">item_name</span></label>
+                  <label for="item_name" class="label">Item name <span class="key">item_name</span></label>
                   <input id="item_name" name="item_name" class="field" maxlength="100" placeholder="Electronics - Mechanical Keyboard" value="Electronics - Mechanical Keyboard" required />
                   <p class="err" data-err="item_name">Describe the item (up to 100 characters).</p>
                 </div>
                 <div>
-                  <label for="weight" class="block text-sm font-medium text-slate-700 mb-1">Weight (kg) <span class="font-mono text-xs text-slate-400">weight</span></label>
+                  <label for="weight" class="label">Weight (kg) <span class="key">weight</span></label>
                   <input id="weight" name="weight" type="number" class="field font-mono" min="0.01" max="999.99" step="0.01" value="2.50" inputmode="decimal" required />
                   <p class="err" data-err="weight">Weight must be between 0.01 and 999.99 kg.</p>
                 </div>
@@ -251,8 +148,8 @@
                   <div id="total" class="text-3xl font-extrabold font-mono tracking-tight" aria-live="polite">₱150.50</div>
                   <div class="text-xs text-slate-500 mt-1">1 booking : 1 payment</div>
                 </div>
-                <button id="submitBtn" type="submit" class="inline-flex items-center gap-2 bg-royal hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl px-6 py-3 transition">
-                  <i data-lucide="lock-keyhole" class="w-4 h-4" id="submitIcon"></i>
+                <button id="submitBtn" type="submit" class="btn btn-primary px-6 py-3" disabled>
+                  <i data-lucide="lock-keyhole" class="w-4 h-4"></i>
                   <span id="submitLabel">Confirm &amp; Pay</span>
                 </button>
               </div>
@@ -268,26 +165,38 @@
               <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Live</span>
             </div>
 
-            <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">tracking_number</div>
-            <div id="trkNumber" class="font-mono text-2xl font-semibold tracking-tight mt-1">FF-TRK-983421</div>
+            <div id="trackerEmpty" class="hidden empty !py-8">
+              <i data-lucide="package-open" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i>
+              No parcels yet. Book your first shipment and it will appear here.
+            </div>
 
-            <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <div class="flex items-center gap-2 text-sm text-slate-700 min-w-0">
-                <i data-lucide="route" class="w-4 h-4 text-slate-400 shrink-0"></i>
-                <span id="trkRoute" class="truncate">Cagayan de Oro Main → Juan Dela Cruz</span>
+            <div id="trackerBody">
+              <div class="mb-4">
+                <label for="trackSelect" class="sr-only">Choose a parcel to track</label>
+                <select id="trackSelect" class="field text-sm" hidden></select>
               </div>
-              <span id="trkPill" class="badge badge-amber">In Transit</span>
+
+              <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">tracking_number</div>
+              <div id="trkNumber" class="font-mono text-2xl font-semibold tracking-tight mt-1"><span class="skeleton inline-block h-7 w-48"></span></div>
+
+              <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2 text-sm text-slate-700 min-w-0">
+                  <i data-lucide="route" class="w-4 h-4 text-slate-400 shrink-0"></i>
+                  <span id="trkRoute" class="truncate">—</span>
+                </div>
+                <span id="trkPill" class="badge badge-slate">—</span>
+              </div>
+
+              <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-mono">
+                <span>booking <b id="trkBooking" class="text-slate-700">—</b></span>
+                <span>booking_status <b id="trkBookingStatus" class="text-slate-700">—</b></span>
+                <span>payment_status <b id="trkPaymentStatus" class="text-slate-700">—</b></span>
+              </div>
+
+              <hr class="my-6 border-line" />
+
+              <ol id="stepper" class="list-none" aria-label="Parcel progress"></ol>
             </div>
-
-            <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-mono">
-              <span>booking <b id="trkBooking" class="text-slate-700">#1001</b></span>
-              <span>booking_status <b id="trkBookingStatus" class="text-emerald-700">Confirmed</b></span>
-              <span>payment_status <b class="text-emerald-700">Paid</b></span>
-            </div>
-
-            <hr class="my-6 border-line" />
-
-            <ol id="stepper" class="list-none" aria-label="Parcel progress"></ol>
           </section>
 
           <section class="card p-6 flex items-center gap-4">
@@ -296,186 +205,214 @@
               <div class="font-semibold">Something not right?</div>
               <div class="text-sm text-slate-500">Late, damaged or missing — tell us and we'll step in.</div>
             </div>
-            <a href="shipments.html" class="shrink-0 border border-slate-300 hover:border-royal hover:text-royal rounded-xl px-4 py-2 text-sm font-semibold transition">Report Issue</a>
+            <a href="shipments.html" class="btn btn-outline btn-sm shrink-0">Report Issue</a>
           </section>
         </div>
       </div>
     </main>
   </div>
 
-  <div id="toasts" class="fixed bottom-5 right-5 z-50 space-y-3" aria-live="polite" aria-atomic="false"></div>
-
   <script>
-    // ---------- Pricing (₱100.00 base + ₱20.20/kg => 2.50 kg = ₱150.50) ----------
-    const BASE_CENTS = 10000;
-    const PER_KG_CENTS = 2020;
-    const peso = (cents) => '₱' + (cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const session = FF.mountShell({ page: 'booking.html', roles: ['Customer'] });
+    const $ = FF.$;
+    const form = $('bookingForm');
+    const customerId = session.customer_id;
+
+    // ---------- Pricing: ₱100.00 base + ₱20.20/kg (2.50 kg = ₱150.50) ----------
     const parseWeight = (v) => {
       const w = Number(v);
       return v !== '' && Number.isFinite(w) && w >= 0.01 && w <= 999.99 ? w : null;
     };
-    const weightCents = (w) => Math.round(w * PER_KG_CENTS);
-
-    const $ = (id) => document.getElementById(id);
-    const form = $('bookingForm');
-
     function updateFee() {
       const w = parseWeight($('weight').value);
-      const wc = w === null ? 0 : weightCents(w);
-      $('feeBase').textContent = peso(BASE_CENTS);
-      $('feeWeight').textContent = peso(wc);
-      $('total').textContent = peso(w === null ? BASE_CENTS : BASE_CENTS + wc);
-      return w === null ? null : BASE_CENTS + wc;
+      const weightCents = w === null ? 0 : FF.shippingFeeCents(w) - 10000;
+      $('feeBase').textContent = FF.peso(100);
+      $('feeWeight').textContent = FF.peso(weightCents / 100);
+      $('total').textContent = FF.peso((10000 + weightCents) / 100);
+      return w === null ? null : (10000 + weightCents) / 100;
     }
     $('weight').addEventListener('input', updateFee);
 
-    // ---------- Tracker ----------
-    const STEPS = [
-      { name: 'Pending',          sub: 'Awaiting payment verification' },
-      { name: 'Booked',           sub: 'Payment verified' },
-      { name: 'In Transit',       sub: 'On the road to the destination hub' },
-      { name: 'Out for Delivery', sub: 'Courier is heading to the receiver' },
-      { name: 'Delivered',        sub: 'Handed over to the receiver' },
-    ];
-    const STATUS_BADGE = { 'Pending': 'amber', 'Booked': 'amber', 'In Transit': 'amber', 'Out for Delivery': 'amber', 'Delivered': 'emerald', 'Failed': 'rose' };
+    // ---------- Load branches, receivers and the signed-in customer ----------
+    let branches = [];
+    async function loadForm() {
+      $('loadError').classList.add('hidden');
+      try {
+        const [me, br, cu] = await Promise.all([
+          FF.currentUser(),
+          FF.apiFetch('/branches', { query: { limit: 100 }, silent: true }),
+          FF.apiFetch('/customers', { query: { limit: 100 }, silent: true }),
+        ]);
+        if (!me.record) throw new Error('customer not found');
+        branches = br.data;
 
-    function renderStepper(currentIdx, notes = {}) {
-      const ol = $('stepper');
-      ol.replaceChildren();
-      STEPS.forEach((s, i) => {
-        const state = i < currentIdx ? 'done' : i === currentIdx ? 'current' : 'upcoming';
-        const li = document.createElement('li');
-        li.className = `step ${state}` + (i === currentIdx && i === STEPS.length - 1 ? ' final' : '');
-        if (state === 'current') li.setAttribute('aria-current', 'step');
-        const icon = state === 'done' || (state === 'current' && i === STEPS.length - 1) ? 'check' : state === 'current' ? 'loader' : 'circle';
-        li.innerHTML = `
-          <span class="step-dot"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i></span>
-          <div class="step-title">${s.name}</div>
-          <div class="step-sub"></div>`;
-        li.querySelector('.step-sub').textContent = notes[i] || s.sub;
-        ol.appendChild(li);
-      });
-      lucide.createIcons();
+        const c = me.record;
+        $('greeting').textContent = `Let's get it moving, ${(c.first_name || c.name).split(' ')[0]}.`;
+        $('sender_name').value = c.name;
+        $('senderHint').textContent = `sender_id = ${c.customer_id}`;
+
+        $('branch_id').innerHTML = '<option value="">Select a branch…</option>' + branches.map((b) =>
+          `<option value="${b.branch_id}">${b.branch_id} - ${FF.esc(b.branch_name)} (${FF.esc(b.address.split(',')[0])})</option>`).join('');
+        const main = branches.find((b) => b.branch_id === 12) || branches[0];
+        if (main) $('branch_id').value = main.branch_id;
+        updateAccountBadge(c);
+
+        const others = cu.data.filter((x) => x.customer_id !== c.customer_id);
+        $('receiver_id').innerHTML = '<option value="">Select a receiver…</option>' + others.map((x) =>
+          `<option value="${x.customer_id}" data-name="${FF.esc(x.name)}">${FF.esc(x.name)}</option>`).join('');
+        if (others[0]) $('receiver_id').value = others.find((x) => x.name === 'Juan Dela Cruz')?.customer_id ?? others[0].customer_id;
+
+        $('submitBtn').disabled = false;
+        await loadTracker();
+      } catch (err) {
+        $('loadError').classList.remove('hidden');
+        $('trkNumber').textContent = '—';
+      }
     }
+    $('retryLoad').addEventListener('click', loadForm);
+    function updateAccountBadge(c) {
+      const b = branches.find((x) => String(x.branch_id) === $('branch_id').value);
+      $('accountBadge').textContent = `${c.account_type} Account • ${b ? b.branch_name : 'Select a branch'}`;
+    }
+    $('branch_id').addEventListener('change', async () => updateAccountBadge((await FF.currentUser()).record));
 
-    function setTracker({ trk, route, status, booking, bookingStatus, notes }) {
-      $('trkNumber').textContent = trk;
-      $('trkRoute').textContent = route;
-      $('trkBooking').textContent = booking;
+    // ---------- Live parcel tracker ----------
+    async function renderParcel(p, notes) {
+      $('trackerEmpty').classList.add('hidden');
+      $('trackerBody').classList.remove('hidden');
+      $('trkNumber').textContent = p.tracking_number;
+      $('trkRoute').textContent = `${p.branch_name || 'Branch'} → ${p.receiver_name || 'Receiver'}`;
+      $('trkPill').className = 'badge ' + FF.badgeClass(p.current_status);
+      $('trkPill').textContent = p.current_status;
+      $('trkBooking').textContent = '#' + p.booking_id;
       const bs = $('trkBookingStatus');
-      bs.textContent = bookingStatus;
-      bs.className = bookingStatus === 'Confirmed' ? 'text-emerald-700' : 'text-amber-700';
-      const pill = $('trkPill');
-      pill.textContent = status;
-      pill.className = 'badge badge-' + STATUS_BADGE[status];
-      renderStepper(STEPS.findIndex((s) => s.name === status), notes);
+      bs.textContent = p.booking_status || '—';
+      bs.className = p.booking_status === 'Confirmed' ? 'text-emerald-700' : p.booking_status === 'Cancelled' ? 'text-rose-700' : 'text-amber-700';
+      const ps = $('trkPaymentStatus');
+      ps.textContent = p.payment ? p.payment.payment_status : 'Unpaid';
+      ps.className = p.payment?.payment_status === 'Paid' ? 'text-emerald-700' : p.payment?.payment_status === 'Voided' || p.payment?.payment_status === 'Failed' ? 'text-rose-700' : 'text-amber-700';
+      $('stepper').innerHTML = FF.stepper(p.current_status, notes || {
+        0: 'Booking created',
+        ...(['Pending'].includes(p.current_status) ? { 0: p.booking_status === 'Confirmed' ? 'Booking created' : 'Booking created — awaiting payment' } : {}),
+      });
+      FF.icons();
     }
 
-    // Initial: the active parcel from GET /parcels (FF-TRK-983421, In Transit)
-    setTracker({
-      trk: 'FF-TRK-983421', route: 'Cagayan de Oro Main → Juan Dela Cruz', status: 'In Transit',
-      booking: '#1001', bookingStatus: 'Confirmed',
-      notes: { 0: 'Booking created', 1: 'Payment verified', 2: 'Left Cagayan de Oro Main hub' },
-    });
-
-    // ---------- Toast ----------
-    function toast(title, body) {
-      const el = document.createElement('div');
-      el.className = 'toast flex items-start gap-3 bg-white border border-line border-l-4 border-l-emerald-500 shadow-lg rounded-xl px-4 py-3 w-80';
-      el.setAttribute('role', 'status');
-      el.innerHTML = '<i data-lucide="circle-check" class="w-5 h-5 text-emerald-600 mt-0.5 shrink-0"></i><div class="text-sm"><div class="font-semibold"></div><div class="text-slate-500 mt-0.5"></div></div>';
-      el.querySelector('.font-semibold').textContent = title;
-      el.querySelector('.text-slate-500').textContent = body;
-      $('toasts').appendChild(el);
-      lucide.createIcons();
-      setTimeout(() => el.remove(), 5000);
+    // Pick the most relevant parcel: one on the road if any, otherwise the newest
+    async function loadTracker(focusParcelId) {
+      try {
+        const res = await FF.apiFetch('/parcels', { query: { customer_id: customerId, include: 'details', limit: 50 }, silent: true });
+        const parcels = res.data;
+        if (!parcels.length) {
+          $('trackerBody').classList.add('hidden');
+          $('trackerEmpty').classList.remove('hidden');
+          return;
+        }
+        const sel = $('trackSelect');
+        sel.hidden = parcels.length < 2;
+        sel.innerHTML = parcels.map((p) => `<option value="${p.parcel_id}">${FF.esc(p.tracking_number)} — ${FF.esc(p.item_name)} (${FF.esc(p.current_status)})</option>`).join('');
+        const pick = parcels.find((p) => p.parcel_id === focusParcelId)
+          || parcels.find((p) => ['In Transit', 'Out for Delivery'].includes(p.current_status)) || parcels[0];
+        sel.value = pick.parcel_id;
+        sel.onchange = () => renderParcel(parcels.find((p) => String(p.parcel_id) === sel.value));
+        await renderParcel(pick);
+      } catch (err) {
+        $('trkNumber').textContent = 'Tracker unavailable';
+      }
     }
 
     // ---------- Validation ----------
-    function setInvalid(id, bad) {
+    const FIELDS = ['branch_id', 'receiver_id', 'item_name', 'weight'];
+    function setInvalid(id, bad, message) {
       const input = $(id);
       input.classList.toggle('invalid', bad);
       input.setAttribute('aria-invalid', bad ? 'true' : 'false');
-      document.querySelector(`[data-err="${id}"]`).classList.toggle('show', bad);
+      const err = document.querySelector(`[data-err="${id}"]`);
+      if (message) err.textContent = message;
+      err.classList.toggle('show', bad);
     }
     function validate() {
-      const checks = {
+      const ok = {
         branch_id: $('branch_id').value !== '',
         receiver_id: $('receiver_id').value !== '',
         item_name: $('item_name').value.trim().length > 0 && $('item_name').value.length <= 100,
         weight: parseWeight($('weight').value) !== null,
       };
-      Object.entries(checks).forEach(([id, ok]) => setInvalid(id, !ok));
-      const firstBad = Object.keys(checks).find((id) => !checks[id]);
+      FIELDS.forEach((id) => setInvalid(id, !ok[id]));
+      const firstBad = FIELDS.find((id) => !ok[id]);
       if (firstBad) $(firstBad).focus();
       return !firstBad;
     }
-    ['branch_id', 'receiver_id', 'item_name', 'weight'].forEach((id) =>
-      $(id).addEventListener('input', () => setInvalid(id, false)));
+    FIELDS.forEach((id) => $(id).addEventListener('input', () => setInvalid(id, false)));
 
-    // ---------- Submit: Pending -> Confirmed ----------
-    let nextBookingId = 1002;
-    let nextPaymentId = 9100;
-    const randomTrk = () => 'FF-TRK-' + String(Math.floor(Math.random() * 1e6)).padStart(6, '0');
-
-    form.addEventListener('submit', (e) => {
+    // ---------- Submit: booking (Pending) -> parcel -> 1:1 payment (Paid) -> booking Confirmed, parcel Booked ----------
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if ($('submitBtn').disabled || !validate()) return;
-
-      const amountCents = updateFee();
-      const method = form.payment_method.value;
-      const branchOpt = $('branch_id').selectedOptions[0];
-      const receiver = $('receiver_id').selectedOptions[0].textContent;
-      const bookingId = nextBookingId++;
-      const paymentId = nextPaymentId++;
-      const trk = randomTrk();
-      const route = `${branchOpt.dataset.name} → ${receiver}`;
-
-      // Lock the form while the 1:1 payment is processed
       const btn = $('submitBtn');
+      if (btn.disabled || !validate()) return;
+
+      const amount = updateFee();
+      const method = form.payment_method.value;
+      const receiverId = Number($('receiver_id').value);
       btn.disabled = true;
       $('submitLabel').textContent = 'Processing payment…';
       $('result').classList.add('hidden');
 
-      // booking_status starts as Pending until payment_status is Paid
-      setTracker({
-        trk, route, status: 'Pending', booking: '#' + bookingId, bookingStatus: 'Pending',
-        notes: { 0: 'Booking created — awaiting payment' },
-      });
+      let booking = null;
+      try {
+        // 1) Booking starts Pending until its payment is verified
+        booking = await FF.api.post('/bookings', { customer_id: customerId, branch_id: Number($('branch_id').value) }, { silent: true });
+        // 2) Parcel under that booking (system generates FF-TRK-XXXXXX)
+        const parcel = await FF.api.post('/parcels', {
+          booking_id: booking.booking_id, sender_id: customerId, receiver_id: receiverId,
+          weight: parseWeight($('weight').value), item_name: $('item_name').value.trim(),
+        }, { silent: true });
 
-      // Mock of POST /bookings -> POST /parcels -> POST /payments { payment_status: "Paid" }
-      setTimeout(() => {
-        setTracker({
-          trk, route, status: 'Booked', booking: '#' + bookingId, bookingStatus: 'Confirmed',
-          notes: { 0: 'Booking created', 1: 'Payment verified' },
+        // Show the Pending state while the payment goes through
+        await renderParcel({
+          ...parcel, branch_name: $('branch_id').selectedOptions[0].textContent.replace(/^\d+ - /, '').replace(/ \(.*\)$/, ''),
+          receiver_name: $('receiver_id').selectedOptions[0].dataset.name, booking_status: 'Pending', payment: null,
         });
-        $('resBooking').textContent = '#' + bookingId;
-        $('resTrk').textContent = trk;
+
+        // 3) 1:1 payment as Paid -> backend confirms the booking and moves the parcel to Booked
+        const payment = await FF.api.post('/payments', {
+          booking_id: booking.booking_id, payment_method: method, amount, payment_status: 'Paid',
+        }, { silent: true });
+
+        const fresh = await FF.apiFetch('/parcels/' + parcel.parcel_id, { query: { include: 'details' } });
+        await renderParcel(fresh, { 0: 'Booking created', 1: 'Payment verified' });
+        await loadTracker(parcel.parcel_id);
+
+        $('resBooking').textContent = '#' + booking.booking_id;
+        $('resTrk').textContent = parcel.tracking_number;
         $('result').classList.remove('hidden');
         $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        toast('Booking confirmed', `${trk} • ${peso(amountCents)} paid via ${method} (payment #${paymentId}).`);
+        FF.toast(`${parcel.tracking_number} • ${FF.peso(amount)} paid via ${method} (payment #${payment.payment_id}).`, 'success', { title: 'Booking confirmed' });
 
-        btn.disabled = false;
-        $('submitLabel').textContent = 'Confirm & Pay';
-        // Reset the per-parcel fields so the same booking isn't submitted twice by accident
+        // Reset per-parcel fields so the same booking isn't submitted twice by accident
         $('item_name').value = '';
         $('weight').value = '2.50';
         updateFee();
-      }, 1000);
+      } catch (err) {
+        // Roll back a half-created booking (cascades to its parcel) so no unpaid orphan is left behind
+        if (booking) { try { await FF.api.del('/bookings/' + booking.booking_id, { silent: true }); } catch (e2) { /* best effort */ } }
+        if (err.status === 422) {
+          const errs = FF.fieldErrors(err);
+          FIELDS.forEach((id) => { if (errs[id]) setInvalid(id, true, errs[id]); });
+        }
+        FF.toast(err.message, err.status === 409 ? 'warning' : 'error', {
+          title: err.status === 409 ? 'Booking blocked (409 Conflict)' : err.status === 422 ? 'Validation error (422)' : 'Booking failed',
+          details: (err.details || []).map((d) => d.issue),
+        });
+        await loadTracker();
+      } finally {
+        btn.disabled = false;
+        $('submitLabel').textContent = 'Confirm & Pay';
+      }
     });
 
-    // ---------- Mobile sidebar ----------
-    const sidebar = $('sidebar'), scrim = $('scrim'), menuBtn = $('menuBtn');
-    function toggleMenu(open) {
-      sidebar.classList.toggle('-translate-x-full', !open);
-      scrim.classList.toggle('hidden', !open);
-      menuBtn.setAttribute('aria-expanded', String(open));
-    }
-    menuBtn.addEventListener('click', () => toggleMenu(sidebar.classList.contains('-translate-x-full')));
-    scrim.addEventListener('click', () => toggleMenu(false));
-
     updateFee();
-    lucide.createIcons();
+    loadForm();
   </script>
 </body>
 </html>

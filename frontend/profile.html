@@ -1,162 +1,283 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Freight-Flow | My Profile</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<header class="top">
-  <div class="logo">FREIGHT—FLOW<small>EXPRESS</small></div>
-  <nav><a class="on" href="profile.html">Profile</a><a href="#" id="signout">Sign out →</a></nav>
-</header>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Profile • Freight-Flow Express</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="css/ff.css"><script src="js/api.js"></script></head>
+<body class="text-slate-900 antialiased">
+<div id="ff-sidebar"></div>
+<div class="lg:pl-64 min-h-screen flex flex-col"><div id="ff-topbar"></div>
+<main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
 
-<main>
-  <div class="eyebrow">Customer portal</div>
-  <h1>My profile</h1>
-  <p class="sub">Your details are used for booking and delivery updates.</p>
+  <div class="mb-6">
+    <h1 class="text-3xl font-extrabold tracking-tight">My Profile</h1>
+    <p class="text-slate-500 mt-1">Your details are used for bookings and delivery updates.</p>
+  </div>
 
-  <div class="profile">
-    <aside class="card">
-      <div class="avatar" id="avatar">?</div>
-      <h2 id="p-name">Loading…</h2>
-      <span class="badge" id="p-type"></span>
-      <div class="meta">Customer ID: <b id="p-id"></b></div>
-      <div class="meta" id="p-since"></div>
+  <!-- My activity -->
+  <section aria-labelledby="activity-title" class="mb-6">
+    <h2 id="activity-title" class="sr-only">My activity</h2>
+    <div class="grid sm:grid-cols-3 gap-4" id="activity">
+      <a href="booking.html" class="card p-5 flex items-center gap-4 hover:border-royal transition-colors">
+        <span class="w-11 h-11 rounded-xl bg-blue-50 text-royal grid place-items-center shrink-0"><i data-lucide="package-plus" class="w-5 h-5"></i></span>
+        <span><span class="block text-2xl font-extrabold leading-none" id="n-bookings"><span class="skeleton inline-block w-8 h-6 align-middle"></span></span><span class="block text-sm text-slate-500 mt-1">Bookings</span></span>
+      </a>
+      <a href="shipments.html" class="card p-5 flex items-center gap-4 hover:border-royal transition-colors">
+        <span class="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 grid place-items-center shrink-0"><i data-lucide="package-search" class="w-5 h-5"></i></span>
+        <span><span class="block text-2xl font-extrabold leading-none" id="n-parcels"><span class="skeleton inline-block w-8 h-6 align-middle"></span></span><span class="block text-sm text-slate-500 mt-1">Parcels (sent &amp; received)</span></span>
+      </a>
+      <a href="complaints.html" class="card p-5 flex items-center gap-4 hover:border-royal transition-colors">
+        <span class="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 grid place-items-center shrink-0"><i data-lucide="message-square-warning" class="w-5 h-5"></i></span>
+        <span><span class="block text-2xl font-extrabold leading-none" id="n-complaints"><span class="skeleton inline-block w-8 h-6 align-middle"></span></span><span class="block text-sm text-slate-500 mt-1">Complaints</span></span>
+      </a>
+    </div>
+  </section>
+
+  <div id="state-loading" class="grid lg:grid-cols-3 gap-6" aria-busy="true">
+    <div class="card p-6"><div class="skeleton w-20 h-20 rounded-full mx-auto"></div><div class="skeleton h-5 w-40 mx-auto mt-4"></div><div class="skeleton h-4 w-28 mx-auto mt-3"></div></div>
+    <div class="card p-6 lg:col-span-2 space-y-4"><div class="skeleton h-10"></div><div class="skeleton h-10"></div><div class="skeleton h-10"></div><div class="skeleton h-10"></div></div>
+  </div>
+
+  <div id="state-error" class="card" hidden>
+    <div class="empty">
+      <i data-lucide="cloud-off" class="w-8 h-8 mx-auto text-slate-400"></i>
+      <p class="mt-3 font-semibold text-slate-700" id="error-title">Could not load your profile</p>
+      <p class="mt-1" id="error-msg"></p>
+      <div class="mt-4 flex justify-center gap-3">
+        <button type="button" class="btn btn-primary btn-sm" id="retry">Try again</button>
+        <a href="index.html" class="btn btn-outline btn-sm">Back to login</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="state-ready" class="grid lg:grid-cols-3 gap-6" hidden>
+    <!-- Identity card -->
+    <aside class="card p-6 text-center h-fit" aria-label="Account summary">
+      <div id="p-avatar" class="w-20 h-20 rounded-full bg-royal text-white grid place-items-center text-2xl font-extrabold mx-auto" aria-hidden="true">?</div>
+      <h2 id="p-name" class="mt-4 text-xl font-bold break-words"></h2>
+      <div class="mt-2" id="p-type"></div>
+      <dl class="mt-5 text-sm text-left divide-y divide-slate-100 border-t border-slate-100">
+        <div class="flex justify-between gap-3 py-2.5"><dt class="text-slate-500">Customer ID</dt><dd class="mono font-medium" id="p-id"></dd></div>
+        <div class="flex justify-between gap-3 py-2.5"><dt class="text-slate-500">Member since</dt><dd class="font-medium" id="p-since"></dd></div>
+        <div class="flex justify-between gap-3 py-2.5"><dt class="text-slate-500">Last updated</dt><dd class="font-medium" id="p-updated"></dd></div>
+      </dl>
     </aside>
 
-    <section class="card">
-      <form id="edit">
-        <label for="name">Name</label>
-        <input id="name" name="name" required maxlength="100">
-        <label for="contact_information">Contact info · Email / mobile</label>
-        <input id="contact_information" name="contact_information" required maxlength="150">
-        <label for="address">Address</label>
-        <input id="address" name="address" required maxlength="200">
-        <label for="account_type">Account type</label>
-        <input id="account_type" readonly>
-        <p class="hint">Account type cannot be changed after registration.</p>
-
-        <!-- extra fields are generated here depending on account type -->
-        <div id="extras"></div>
-
-        <div class="actions">
-          <button class="btn" type="submit" id="save">Save changes</button>
-          <button class="btn ghost" type="button" id="reset">Cancel</button>
+    <!-- Edit form -->
+    <section class="card p-6 lg:col-span-2" aria-labelledby="edit-title">
+      <h2 id="edit-title" class="text-lg font-bold">Account details</h2>
+      <p class="text-sm text-slate-500">Update your contact details and registration information.</p>
+      <form id="edit" class="mt-5 space-y-4" novalidate>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div><label class="label" for="f-name">Name</label><input class="field" id="f-name" data-field="name" required maxlength="100" autocomplete="name"><p class="err" data-err="name"></p></div>
+          <div><label class="label" for="f-account_type">Account type <span class="key">read-only</span></label><input class="field" id="f-account_type" readonly aria-describedby="type-note"><p class="text-xs text-slate-400 mt-1" id="type-note">Cannot be changed after registration.</p></div>
         </div>
-        <div class="actions"><button class="btn danger" type="button" id="del">Delete account</button></div>
+        <div><label class="label" for="f-contact_info">Contact info <span class="text-slate-400 font-normal">(email / mobile)</span></label><input class="field" id="f-contact_info" data-field="contact_info" required maxlength="150" autocomplete="email"><p class="err" data-err="contact_info"></p></div>
+        <div><label class="label" for="f-address">Address</label><input class="field" id="f-address" data-field="address" required maxlength="200" autocomplete="street-address"><p class="err" data-err="address"></p></div>
+
+        <div id="extras" class="space-y-4"></div>
+
+        <div class="flex flex-wrap gap-3 pt-2">
+          <button class="btn btn-primary" type="submit" id="save"><i data-lucide="save" class="w-4 h-4"></i> Save changes</button>
+          <button class="btn btn-outline" type="button" id="reset">Reset</button>
+        </div>
       </form>
+
+      <div class="mt-8 pt-6 border-t border-slate-100">
+        <h3 class="font-bold text-rose-700">Danger zone</h3>
+        <p class="text-sm text-slate-500 mt-1">Deleting your account is permanent. It is blocked while you have active bookings, undelivered parcels or unresolved complaints.</p>
+        <button type="button" class="btn btn-danger-outline mt-3" id="del"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete account</button>
+      </div>
     </section>
   </div>
-</main>
+</main></div>
 
-<script src="app.js"></script>
 <script>
-// Extra fields per account type: [api field, label, input kind, required]
+const session = FF.mountShell({ page: 'profile.html', roles: ['Customer'] });
+
+// Extra fields per account type: [api field, label, kind, required, maxlength, placeholder]
 const EXTRA = {
-  'Retail': [],
+  'Retail': [
+    ['first_name', 'First name', 'text', true, 50],
+    ['last_name', 'Last name', 'text', true, 50],
+  ],
   'E-Commerce': [
-    ['store_name', 'Store name', 'text', true],
-    ['business_registration_number', 'Business registration no.', 'text', true],
-    ['return_address_override', 'Return address override (optional)', 'text', false]
+    ['store_name', 'Store name', 'text', true, 100],
+    ['business_registration_number', 'Business registration no.', 'text', true, 50],
+    ['return_address_override', 'Return address override (optional)', 'text', false, 200],
   ],
   'Non-Profit': [
-    ['charity_registration_number', 'Charity registration no.', 'text', true],
-    ['donor_reference_codes', 'Donor reference codes (comma-separated)', 'list', false],
-    ['tax_exempt_status', 'Tax exempt organisation', 'checkbox', false]
-  ]
+    ['charity_registration_number', 'Charity registration no.', 'text', true, 50],
+    ['donor_reference_codes', 'Donor reference codes (optional, comma-separated)', 'list', false],
+    ['tax_exempt_status', 'Tax-exempt organisation', 'checkbox', false],
+  ],
 };
+const BASE = ['name', 'contact_info', 'address'];
 
-let customer = store.get();
-if (!customer) location.replace('index.html');
-const form = document.getElementById('edit');
-const $ = id => document.getElementById(id);
+let customer = null;
+const form = FF.$('edit');
+const show = (id) => ['state-loading', 'state-error', 'state-ready'].forEach((s) => { FF.$(s).hidden = s !== id; });
+const initialsOf = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 
-function render() {
-  $('avatar').textContent = (customer.name || '?').charAt(0).toUpperCase();
-  $('p-name').textContent = customer.name;
-  $('p-type').textContent = customer.account_type;
-  $('p-id').textContent = customer.customer_id;
-  $('p-since').textContent = customer.created_at ? 'Member since ' + new Date(customer.created_at).toLocaleDateString() : '';
-  ['name', 'contact_information', 'address'].forEach(k => $(k).value = customer[k] || '');
-  $('account_type').value = customer.account_type;
-
-  const box = $('extras');
-  box.textContent = '';
-  (EXTRA[customer.account_type] || []).forEach(([key, label, kind, req]) => {
-    const wrap = document.createElement('div');
-    const lab = document.createElement('label');
-    lab.htmlFor = 'x-' + key;
-    const inp = document.createElement('input');
-    inp.id = 'x-' + key;
-    inp.name = key;
-    inp.required = req;
-    if (kind === 'checkbox') {
-      inp.type = 'checkbox';
-      inp.checked = !!customer[key];
-      lab.className = 'check';
-      lab.append(inp, ' ' + label);
-      wrap.append(lab);
-    } else {
-      lab.textContent = label;
-      inp.value = kind === 'list' ? (customer[key] || []).join(', ') : (customer[key] || '');
-      wrap.append(lab, inp);
-    }
-    box.append(wrap);
-  });
+function clearErrors() {
+  form.querySelectorAll('.field.invalid').forEach((i) => { i.classList.remove('invalid'); i.removeAttribute('aria-invalid'); });
+  form.querySelectorAll('.err').forEach((e) => { e.classList.remove('show'); e.textContent = ''; });
 }
-if (customer) render();
-
-// Refresh from the API when it is running
-if (customer) api('/customers/' + customer.customer_id).then(c => { customer = c; store.set(c); render(); }).catch(() => {});
-
-$('reset').onclick = render;
-
-form.addEventListener('submit', async e => {
-  e.preventDefault();
-  if (!form.reportValidity()) return;
-  // PATCH body: only editable fields (account_type is never sent)
-  const body = {
-    name: $('name').value.trim(),
-    contact_information: $('contact_information').value.trim(),
-    address: $('address').value.trim()
-  };
-  (EXTRA[customer.account_type] || []).forEach(([key, , kind]) => {
-    const el = $('x-' + key);
-    if (kind === 'checkbox') body[key] = el.checked;
-    else if (kind === 'list') body[key] = el.value.split(',').map(s => s.trim()).filter(Boolean);
-    else if (el.value.trim() || customer[key]) body[key] = el.value.trim();
-  });
-
-  $('save').disabled = true;
-  try {
-    customer = await api('/customers/' + customer.customer_id, { method: 'PATCH', body: JSON.stringify(body) });
-    store.set(customer);
-    render();
-    toast('Profile updated.', 'ok');
-  } catch (err) {
-    if (err.status) toast(errorText(err), 'err');
-    else {
-      customer = Object.assign({}, customer, body, { updated_at: new Date().toISOString() });
-      store.set(customer);
-      render();
-      toast('API unreachable. Saved locally (demo mode).', 'ok');
-    }
-  } finally { $('save').disabled = false; }
+function showError(input, msg) {
+  if (!input) return;
+  input.classList.add('invalid'); input.setAttribute('aria-invalid', 'true');
+  const err = input.parentElement.querySelector('.err');
+  if (err) { err.textContent = msg; err.classList.add('show'); }
+}
+form.addEventListener('input', (e) => {
+  const i = e.target;
+  if (i.classList.contains('invalid')) {
+    i.classList.remove('invalid'); i.removeAttribute('aria-invalid');
+    const er = i.parentElement.querySelector('.err'); if (er) { er.classList.remove('show'); er.textContent = ''; }
+  }
 });
 
-$('del').onclick = async () => {
-  if (!confirm('Delete your account? This cannot be undone.')) return;
-  try { await api('/customers/' + customer.customer_id, { method: 'DELETE' }); }
-  catch (err) {
-    if (err.status) return toast(errorText(err), 'err'); // e.g. 409 when the customer still has bookings
-  }
-  store.clear();
-  location.href = 'index.html';
-};
+function renderExtras(type) {
+  FF.$('extras').innerHTML = (EXTRA[type] || []).map(([key, label, kind, req, max]) => {
+    if (kind === 'checkbox') {
+      return `<div><label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-blue-600" id="f-${key}" data-field="${key}"> ${FF.esc(label)}</label><p class="err" data-err="${key}"></p></div>`;
+    }
+    return `<div><label class="label" for="f-${key}">${FF.esc(label)}</label><input class="field" id="f-${key}" data-field="${key}" ${req ? 'required' : ''} ${max ? `maxlength="${max}"` : ''}><p class="err" data-err="${key}"></p></div>`;
+  }).join('');
+}
 
-$('signout').onclick = e => { e.preventDefault(); store.clear(); location.href = 'index.html'; };
-</script>
-</body>
-</html>
+// Value helpers: the string/array/bool shown in each input for a given customer record
+function valueOf(key, kind) {
+  if (kind === 'list') return (customer[key] || []).join(', ');
+  if (kind === 'checkbox') return !!customer[key];
+  return customer[key] ?? '';
+}
+
+function render() {
+  const c = customer;
+  FF.$('p-avatar').textContent = initialsOf(c.name);
+  FF.$('p-name').textContent = c.name;
+  FF.$('p-type').innerHTML = `<span class="badge badge-blue">${FF.esc(c.account_type)}</span>`;
+  FF.$('p-id').textContent = '#' + c.customer_id;
+  FF.$('p-since').textContent = FF.date(c.created_at, false);
+  FF.$('p-updated').textContent = FF.date(c.updated_at);
+  FF.$('f-account_type').value = c.account_type;
+  renderExtras(c.account_type);
+  fillForm();
+  FF.icons();
+}
+function fillForm() {
+  clearErrors();
+  BASE.forEach((k) => { FF.$('f-' + k).value = customer[k] ?? ''; });
+  (EXTRA[customer.account_type] || []).forEach(([key, , kind]) => {
+    const el = FF.$('f-' + key);
+    if (kind === 'checkbox') el.checked = valueOf(key, kind); else el.value = valueOf(key, kind);
+  });
+}
+
+async function load() {
+  show('state-loading');
+  try {
+    customer = await FF.api.get('/customers/' + session.customer_id, undefined, { silent: true });
+    render();
+    show('state-ready');
+    loadActivity();
+  } catch (err) {
+    FF.$('error-title').textContent = err.status === 404 ? 'Account not found' : 'Could not load your profile';
+    FF.$('error-msg').textContent = err.status === 404 ? 'This customer account no longer exists (it may have been deleted). Please log in or register again.' : err.message;
+    show('state-error');
+    FF.icons();
+  }
+}
+FF.$('retry').addEventListener('click', load);
+
+// ---------- My activity ----------
+async function loadActivity() {
+  const id = session.customer_id;
+  const count = async (path, outId) => {
+    const el = FF.$(outId);
+    try { const r = await FF.api.get(path, { customer_id: id, limit: 1 }, { silent: true }); el.textContent = r.total; }
+    catch (e) { el.textContent = '—'; el.title = 'Could not load'; }
+  };
+  ['n-bookings', 'n-parcels', 'n-complaints'].forEach((o) => { FF.$(o).innerHTML = '<span class="skeleton inline-block w-8 h-6 align-middle"></span>'; });
+  await Promise.all([count('/bookings', 'n-bookings'), count('/parcels', 'n-parcels'), count('/complaints', 'n-complaints')]);
+}
+
+// ---------- Save ----------
+FF.$('reset').addEventListener('click', () => { fillForm(); FF.toast('Changes discarded.', 'info', { duration: 2500 }); });
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearErrors();
+
+  // Client-side required check
+  let firstBad = null;
+  form.querySelectorAll('input[required]').forEach((i) => {
+    if (!i.value.trim()) { showError(i, 'This field is required.'); if (!firstBad) firstBad = i; }
+  });
+  if (firstBad) { firstBad.focus(); return; }
+
+  // PATCH body: only fields that changed; account_type is never sent
+  const body = {};
+  BASE.forEach((k) => { const v = FF.$('f-' + k).value.trim(); if (v !== (customer[k] ?? '')) body[k] = v; });
+  (EXTRA[customer.account_type] || []).forEach(([key, , kind]) => {
+    const el = FF.$('f-' + key);
+    if (kind === 'checkbox') { if (el.checked !== !!customer[key]) body[key] = el.checked; return; }
+    if (kind === 'list') {
+      const codes = el.value.split(',').map((s) => s.trim()).filter(Boolean);
+      if (codes.join('|') !== (customer[key] || []).join('|')) body[key] = codes;
+      return;
+    }
+    const v = el.value.trim();
+    if (v !== (customer[key] ?? '')) body[key] = v === '' && key === 'return_address_override' ? null : v; // null clears the optional override
+  });
+  if (!Object.keys(body).length) return FF.toast('Nothing to save — no fields were changed.', 'info');
+
+  const btn = FF.$('save');
+  btn.disabled = true;
+  try {
+    customer = await FF.api.patch('/customers/' + customer.customer_id, body, { silent: true });
+    render();
+    const nm = FF.$('ff-user-name'), av = FF.$('ff-avatar'), sub = FF.$('ff-user-sub');
+    if (nm) nm.textContent = customer.name;
+    if (av) av.textContent = initialsOf(customer.name);
+    if (sub) sub.textContent = `${customer.account_type} Account`;
+    FF.toast('Profile updated successfully.', 'success');
+  } catch (err) {
+    if (err.status === 422) {
+      let first = null;
+      Object.entries(FF.fieldErrors(err)).forEach(([f, issue]) => {
+        const input = form.querySelector(`[data-field="${f}"]`);
+        showError(input, issue);
+        if (input && !first) first = input;
+      });
+      FF.toast('Please fix the highlighted fields.', 'error', { title: 'Validation error (422)', details: err.details.map((d) => d.issue) });
+      if (first) first.focus();
+    } else if (err.status === 409) {
+      showError(FF.$('f-contact_info'), err.message);
+      FF.toast(err.message, 'warning', { title: 'Duplicate contact info (409)' });
+      FF.$('f-contact_info').focus();
+    } else {
+      FF.toast(err.message, 'error', { title: err.status ? `Request failed (${err.status})` : 'Server unreachable' });
+    }
+  } finally { btn.disabled = false; }
+});
+
+// ---------- Delete account ----------
+FF.$('del').addEventListener('click', async () => {
+  const ok = await FF.confirm({
+    title: 'Delete your account?',
+    html: `This will permanently delete <strong>${FF.esc(customer.name)}</strong> (customer #${FF.esc(customer.customer_id)}). This cannot be undone.`,
+    confirmLabel: 'Delete account', danger: true,
+  });
+  if (!ok) return;
+  try {
+    await FF.api.del('/customers/' + customer.customer_id); // 409 toast is shown by apiFetch
+    FF.session.signOut();
+    location.href = 'index.html';
+  } catch (err) { /* toast already shown; stay on the page */ }
+});
+
+load();
+</script></body></html>

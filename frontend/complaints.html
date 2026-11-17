@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complaints • Freight-Flow Express</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/ff.css"><script src="js/api.js"></script>
+</head>
+<body class="text-slate-900 antialiased">
+<div id="ff-sidebar"></div>
+<div class="lg:pl-64 min-h-screen flex flex-col"><div id="ff-topbar"></div>
+<main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
+
+  <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 id="pageTitle" class="text-3xl font-extrabold tracking-tight">Complaints</h1>
+      <p id="pageSub" class="text-slate-500 mt-1"></p>
+    </div>
+    <div id="headerActions" class="flex items-center gap-3"></div>
+  </div>
+
+  <div id="view" aria-live="polite"></div>
+</main></div>
+
+<script>
+  const session = FF.mountShell({ page: 'complaints.html', roles: ['CSR', 'Manager', 'Customer'] });
+  const $ = FF.$;
+  const esc = FF.esc;
+  const IS_CUSTOMER = session.role === 'Customer';
+  const IS_MANAGER = session.role === 'Manager';
+  const CATS = ['Delivery Issue', 'Seller Dispute', 'Billing Issue', 'Damaged Item'];
+  const STATUSES = ['Pending', 'Investigating', 'Resolved', 'Dismissed'];
+  const PRESETS = {
+    Resolved: [
+      'Refund issued to the customer.',
+      'Parcel located and redelivered to the receiver.',
+      'Replacement item arranged with the sender.',
+      'Apologized to the customer; redelivery completed.',
+      'Seller contacted; dispute settled in the customer\'s favor.',
+    ],
+    Dismissed: [
+      'Duplicate of an earlier ticket.',
+      'Parcel was delivered on schedule; no issue found.',
+      'Insufficient information after follow-up.',
+      'Out of scope; customer referred to the seller.',
+    ],
+  };
+
+  const state = { items: [], csrs: [], loaded: false, error: null, status: 'All', category: '', mine: false, q: '' };
+  let drawer = null; // { m, id }
+
+  const csrName = (id) => (state.csrs.find((s) => s.staff_id === id) || {}).name || null;
+  const find = (id) => state.items.find((c) => c.complaint_id === id);
+
+  async function fetchAll(query) {
+    const out = [];
+    for (let page = 1; page <= 20; page++) {
+      const r = await FF.apiFetch('/complaints', { query: { ...query, include: 'details', limit: 100, page }, silent: true });
+      out.push(...r.data);
+      if (out.length >= r.total || !r.data.length) break;
+    }
+    return out;
+  }
+  function showApiError(e) {
+    FF.toast(e.message || 'Something went wrong.', e.status === 409 ? 'warning' : 'error', { title: e.status ? `Request failed (${e.status})` : 'Error' });
+  }
+  const errState = (msg) => `<div class="card empty"><i data-lucide="cloud-off" class="w-8 h-8 mx-auto text-slate-300"></i>
+    <p class="mt-3 font-semibold text-slate-700">We couldn't load complaints.</p><p class="mt-1">${esc(msg)}</p>
+    <button type="button" class="btn btn-primary btn-sm mt-4" data-retry><i data-lucide="refresh-cw" class="w-4 h-4"></i> Try again</button></div>`;
+
+  // =====================================================================
+  //  CSR / MANAGER VIEW
+  // =====================================================================
+  function staffShell() {
+    $('pageTitle').textContent = 'Complaint desk';
+    $('pageSub').textContent = IS_MANAGER
+      ? 'Assign tickets to Customer Service Representatives and track every outcome.'
+      : 'Take a ticket, investigate, and close it with a recorded outcome.';
+    $('headerActions').innerHTML = `<button id="refreshBtn" type="button" class="btn btn-outline btn-sm"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh</button>`;
+    $('refreshBtn').addEventListener('click', loadStaff);
+    $('view').innerHTML = `
+      <section id="tiles" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" aria-label="Ticket summary"></section>
+      <section class="card overflow-hidden" aria-labelledby="deskTitle">
+        <div class="p-5 sm:p-6 border-b border-line space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <h2 id="deskTitle" class="text-lg font-bold">Tickets</h2>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="relative">
+                <label for="q" class="sr-only">Search tickets</label>
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                <input id="q" type="search" class="field pl-9 w-64" placeholder="Search tracking, customer, text" autocomplete="off">
+              </div>
+              <div><label for="cat" class="sr-only">Filter by category</label>
+                <select id="cat" class="field"><option value="">All categories</option>${CATS.map((c) => `<option>${esc(c)}</option>`).join('')}</select></div>
+              ${IS_MANAGER ? '' : `<label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer"><input id="mine" type="checkbox" class="w-4 h-4 accent-blue-600"> Assigned to me</label>`}
+            </div>
+          </div>
+          <div id="tabs" class="tabs" role="tablist" aria-label="Filter by status">
+            ${['All', ...STATUSES].map((s) => `<button type="button" role="tab" data-status="${s}" aria-selected="${s === 'All'}">${s} <span class="ml-1 text-xs text-slate-400" data-cnt="${s}"></span></button>`).join('')}
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="ledger w-full min-w-[1080px]">
+            <thead><tr>
+              <th scope="col">Ticket</th><th scope="col">Tracking No.</th><th scope="col">Customer</th><th scope="col">Category</th>
+              <th scope="col">Description</th><th scope="col">Handler</th><th scope="col">Status</th><th scope="col">Filed</th><th scope="col" class="!text-right">Action</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <div class="px-6 py-3 text-xs text-slate-500 border-t border-line flex justify-between"><span id="count"></span><span class="font-mono">GET /complaints</span></div>
+      </section>`;
+    $('q').addEventListener('input', FF.debounce((e) => { state.q = e.target.value.trim().toLowerCase(); renderStaff(); }, 200));
+    $('cat').addEventListener('change', (e) => { state.category = e.target.value; renderStaff(); });
+    if ($('mine')) $('mine').addEventListener('change', (e) => { state.mine = e.target.checked; renderStaff(); });
+    $('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-status]'); if (b) { state.status = b.dataset.status; renderStaff(); } });
+    $('rows').addEventListener('click', onRowClick);
+    $('rows').addEventListener('change', onRowChange);
+    $('tiles').addEventListener('click', (e) => { const b = e.target.closest('[data-tile]'); if (b) { state.status = state.status === b.dataset.tile ? 'All' : b.dataset.tile; renderStaff(); } });
+    renderStaff();
+  }
+
+  const matches = (c) => {
+    if (state.status !== 'All' && c.status !== state.status) return false;
+    if (state.category && c.category !== state.category) return false;
+    if (state.mine && c.staff_id !== session.staff_id) return false;
+    if (state.q) {
+      const hay = [c.complaint_id, c.tracking_number, c.customer_name, c.description, c.item_name].join(' ').toLowerCase();
+      if (!hay.includes(state.q.replace(/^#/, ''))) return false;
+    }
+    return true;
+  };
+
+  function renderStaff() {
+    if (!$('rows')) return;
+    // tiles
+    const cnt = (s) => state.items.filter((c) => c.status === s).length;
+    const toneBy = { Pending: 'text-amber-700', Investigating: 'text-amber-700', Resolved: 'text-emerald-700', Dismissed: 'text-slate-600' };
+    $('tiles').innerHTML = STATUSES.map((s) => `
+      <button type="button" data-tile="${s}" aria-pressed="${state.status === s}" class="card p-5 text-left hover:border-royal transition ${state.status === s ? '!border-royal ring-2 ring-blue-100' : ''}">
+        <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">${s}</div>
+        <div class="mt-1 text-3xl font-extrabold font-mono ${toneBy[s]}">${state.loaded ? cnt(s) : '–'}</div>
+      </button>`).join('');
+    document.querySelectorAll('#tabs [data-status]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.status === state.status)));
+    document.querySelectorAll('#tabs [data-cnt]').forEach((s) => { s.textContent = state.loaded ? (s.dataset.cnt === 'All' ? state.items.length : cnt(s.dataset.cnt)) : ''; });
+
+    const body = $('rows');
+    if (state.error && !state.loaded) { body.innerHTML = `<tr><td colspan="9">${errState(state.error.message)}</td></tr>`; FF.icons(); return; }
+    if (!state.loaded) {
+      body.innerHTML = [1, 2, 3, 4, 5].map(() => `<tr>${'<td><div class="skeleton h-4 w-full"></div></td>'.repeat(9)}</tr>`).join('');
+      return;
+    }
+    const rows = state.items.filter(matches);
+    $('count').textContent = `Showing ${rows.length} of ${state.items.length} tickets`;
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="9" class="empty"><i data-lucide="inbox" class="w-8 h-8 mx-auto text-slate-300"></i><p class="mt-3 font-semibold text-slate-700">No tickets match.</p><p class="mt-1">Try a different status, category or search.</p></td></tr>`;
+      FF.icons(); return;
+    }
+    body.innerHTML = rows.map(rowHtml).join('');
+    FF.icons();
+  }
+
+  function csrOptions(selected) {
+    return state.csrs.map((s) => `<option value="${s.staff_id}" ${s.staff_id === selected ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+  }
+
+  function rowActions(c) {
+    const id = c.complaint_id;
+    if (c.status === 'Pending') {
+      if (IS_MANAGER) return `<label class="sr-only" for="as-${id}">Assign CSR for ticket #${id}</label><select id="as-${id}" class="field !py-1.5 !text-[13px] !w-40" data-assign="${id}"><option value="">Assign CSR…</option>${csrOptions(null)}</select>`;
+      return `<button type="button" class="btn btn-primary btn-sm" data-take="${id}"><i data-lucide="hand" class="w-3.5 h-3.5"></i> Take ticket</button>`;
+    }
+    if (c.status === 'Investigating') {
+      return `<div class="inline-flex gap-2"><button type="button" class="btn btn-success btn-sm" data-resolve="${id}">Resolve</button><button type="button" class="btn btn-outline btn-sm" data-dismiss="${id}">Dismiss</button></div>`;
+    }
+    return `<button type="button" class="btn btn-outline btn-sm" data-reopen="${id}"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reopen</button>`;
+  }
+
+  function rowHtml(c) {
+    const id = c.complaint_id;
+    return `<tr data-id="${id}" class="cursor-pointer">
+      <td><button type="button" class="mono font-semibold text-royal hover:underline" data-open="${id}" aria-label="Open ticket ${id}">#${id}</button></td>
+      <td><div class="mono font-medium">${esc(c.tracking_number)}</div><div class="text-xs text-slate-500 max-w-[200px] truncate" title="${esc(c.item_name)}">${esc(c.item_name)}</div></td>
+      <td class="whitespace-nowrap">${esc(c.customer_name)}</td>
+      <td class="whitespace-nowrap text-slate-600">${esc(c.category)}</td>
+      <td><div class="max-w-[240px] truncate text-slate-600" title="${esc(c.description)}">${esc(c.description)}</div></td>
+      <td class="whitespace-nowrap ${c.staff_name ? '' : 'text-slate-400'}">${esc(c.staff_name || 'Unassigned')}</td>
+      <td>${FF.badge(c.status)}</td>
+      <td class="whitespace-nowrap text-slate-600">${FF.date(c.created_at)}</td>
+      <td class="text-right whitespace-nowrap">${rowActions(c)}</td>
+    </tr>`;
+  }
+
+  function onRowClick(e) {
+    const g = (a) => { const el = e.target.closest(`[${a}]`); return el ? Number(el.getAttribute(a)) : null; };
+    let id;
+    if ((id = g('data-take'))) return takeTicket(id);
+    if ((id = g('data-resolve'))) return closeModal(id, 'Resolved');
+    if ((id = g('data-dismiss'))) return closeModal(id, 'Dismissed');
+    if ((id = g('data-reopen'))) return reopen(id);
+    if (e.target.closest('select, label, [data-retry]')) { if (e.target.closest('[data-retry]')) loadStaff(); return; }
+    const tr = e.target.closest('tr[data-id]');
+    if (tr) openDrawer(Number(tr.dataset.id));
+  }
+  function onRowChange(e) {
+    const s = e.target.closest('[data-assign]');
+    if (s && s.value) assign(Number(s.dataset.assign), Number(s.value));
+  }
+
+  // ---------- mutations
+  async function update(c, body, successMsg) {
+    const res = await FF.apiFetch('/complaints/' + c.complaint_id, { method: 'PATCH', body, silent: true });
+    Object.assign(c, res, { staff_name: res.staff_id ? csrName(res.staff_id) : null });
+    if (successMsg) FF.toast(successMsg, 'success');
+    afterChange(c.complaint_id);
+    return res;
+  }
+  async function guarded(c, body, msg) {
+    try { await update(c, body, msg); } catch (e) { showApiError(e); if (e.status === 404 || e.status === 409) loadStaff(); }
+  }
+  function afterChange(id) {
+    renderStaff();
+    if (drawer && drawer.id === id) renderDrawer();
+    const tr = document.querySelector(`#rows tr[data-id="${id}"]`);
+    if (tr) { tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash'); }
+  }
+  const takeTicket = (id) => { const c = find(id); if (c) guarded(c, { staff_id: session.staff_id, status: 'Investigating' }, `Ticket #${id} assigned to you`); };
+  const reopen = (id) => { const c = find(id); if (c) guarded(c, { status: 'Investigating' }, `Ticket #${id} reopened`); };
+  function assign(id, staffId) {
+    const c = find(id); if (!c) return;
+    const body = { staff_id: staffId };
+    if (c.status === 'Pending') body.status = 'Investigating';
+    guarded(c, body, `Ticket #${id} assigned to ${csrName(staffId) || 'CSR'}`).then(() => afterChange(id));
+  }
+
+  // ---------- Resolve / Dismiss modal
+  function closeModal(id, kind) {
+    const c = find(id); if (!c) return;
+    const fromDrawer = !!(drawer && drawer.id === id);
+    if (fromDrawer) drawer.m.close();
+    const resolve = kind === 'Resolved';
+    const needsHandler = IS_MANAGER;
+    const m = FF.openModal({
+      wide: true,
+      html: `<form id="outForm" novalidate>
+        <div class="flex items-start gap-4">
+          <div class="w-11 h-11 rounded-xl ${resolve ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'} grid place-items-center shrink-0"><i data-lucide="${resolve ? 'circle-check' : 'ban'}" class="w-5 h-5"></i></div>
+          <div><h2 class="text-lg font-bold">${resolve ? 'Resolve' : 'Dismiss'} ticket <span class="mono">#${id}</span></h2>
+          <p class="text-sm text-slate-500 mt-1">${esc(c.tracking_number)} • ${esc(c.customer_name)} • ${esc(c.category)}</p></div>
+        </div>
+        ${needsHandler ? `<div class="mt-5"><label class="label" for="outStaff">Handled by <span class="text-rose-600">*</span></label>
+          <select id="outStaff" class="field"><option value="">Select a CSR…</option>${csrOptions(c.staff_id)}</select><div class="err" id="staffErr"></div></div>` : ''}
+        <div class="mt-5">
+          <label class="label" for="outText">Outcome <span class="text-rose-600">*</span></label>
+          <textarea id="outText" class="field" maxlength="1000" data-autofocus aria-describedby="outErr outCount" placeholder="${resolve ? 'What was done, and what was the customer told?' : 'Why is this ticket being dismissed?'}">${esc(c.status === kind ? c.outcome || '' : '')}</textarea>
+          <div class="flex justify-between"><div class="err" id="outErr" role="alert"></div><div class="text-xs text-slate-400 ml-auto" id="outCount">0 / 1000</div></div>
+        </div>
+        <div class="mt-3"><div class="text-xs font-medium text-slate-500 mb-2">Suggestions</div>
+          <div class="flex flex-wrap gap-2">${PRESETS[kind].map((t, i) => `<button type="button" data-chip="${i}" class="px-3 py-1.5 rounded-full border border-slate-300 text-xs text-slate-700 hover:border-royal hover:text-royal">${esc(t)}</button>`).join('')}</div></div>
+        <div class="mt-6 flex justify-end gap-3">
+          <button type="button" class="btn btn-outline" data-close>Cancel</button>
+          <button type="submit" id="outSubmit" class="btn ${resolve ? 'btn-success' : 'btn-primary'}">${resolve ? 'Resolve ticket' : 'Dismiss ticket'}</button>
+        </div>
+      </form>`,
+      onClose: () => { if (fromDrawer && find(id)) openDrawer(id); },
+    });
+    const p = m.panel, ta = p.querySelector('#outText');
+    const count = () => { p.querySelector('#outCount').textContent = `${ta.value.length} / 1000`; };
+    ta.addEventListener('input', count); count();
+    p.querySelectorAll('[data-chip]').forEach((b) => b.addEventListener('click', () => {
+      const t = PRESETS[kind][Number(b.dataset.chip)];
+      ta.value = ta.value.trim() ? (ta.value.trim() + ' ' + t).slice(0, 1000) : t;
+      ta.focus(); count();
+    }));
+    const setErr = (field, msg) => {
+      const map = { outcome: ['outErr', 'outText'], staff_id: ['staffErr', 'outStaff'] }[field];
+      if (!map) return false;
+      const e = p.querySelector('#' + map[0]), f = p.querySelector('#' + map[1]);
+      if (e) { e.textContent = msg || ''; e.classList.toggle('show', !!msg); }
+      if (f) f.classList.toggle('invalid', !!msg);
+      return !!e;
+    };
+    p.querySelector('#outForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      setErr('outcome', ''); setErr('staff_id', '');
+      const outcome = ta.value.trim();
+      let staff_id = c.staff_id || session.staff_id;
+      let bad = false;
+      if (!outcome) { setErr('outcome', `An outcome is required to ${resolve ? 'resolve' : 'dismiss'} a ticket.`); bad = true; }
+      if (needsHandler) {
+        staff_id = Number(p.querySelector('#outStaff').value) || null;
+        if (!staff_id) { setErr('staff_id', 'Select the CSR handling this ticket.'); bad = true; }
+      }
+      if (bad) return (p.querySelector('.invalid') || ta).focus();
+      const btn = p.querySelector('#outSubmit'); btn.disabled = true;
+      try {
+        await update(c, { status: kind, outcome, staff_id }, `Ticket #${id} ${resolve ? 'resolved' : 'dismissed'}`);
+        m.close(true);
+      } catch (e) {
+        btn.disabled = false;
+        if (e.status === 422) {
+          const fe = FF.fieldErrors(e); let shown = false;
+          Object.entries(fe).forEach(([f, msg]) => { shown = setErr(f, msg) || shown; });
+          if (!shown) showApiError(e);
+        } else showApiError(e);
+      }
+    });
+  }
+
+  // ---------- Drawer
+  function openDrawer(id) {
+    if (drawer) drawer.m.close();
+    const m = FF.openModal({ position: 'right', html: '<div id="drawerBody"></div>', onClose: () => { if (drawer && drawer.m === m) drawer = null; } });
+    drawer = { m, id };
+    renderDrawer(true);
+  }
+  function renderDrawer(first) {
+    if (!drawer) return;
+    const c = find(drawer.id), body = drawer.m.panel.querySelector('#drawerBody');
+    if (!c) { drawer.m.close(); return; }
+    const id = c.complaint_id;
+    const sec = (t) => `<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">${t}</h3>`;
+    let actions = '';
+    if (c.status === 'Pending' || c.status === 'Investigating') {
+      if (IS_MANAGER) actions += `<div class="w-full"><label class="label" for="dAssign">${c.staff_id ? 'Reassign handler' : 'Assign handler'}</label><select id="dAssign" class="field"><option value="">Select a CSR…</option>${csrOptions(c.staff_id)}</select></div>`;
+      else if (c.status === 'Pending') actions += `<button type="button" class="btn btn-primary" data-d="take"><i data-lucide="hand" class="w-4 h-4"></i> Take ticket</button>`;
+      actions += `<button type="button" class="btn btn-success" data-d="resolve">Resolve</button><button type="button" class="btn btn-outline" data-d="dismiss">Dismiss</button>`;
+    } else actions = `<button type="button" class="btn btn-outline" data-d="reopen"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reopen ticket</button>`;
+    body.innerHTML = `
+      <div class="p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div><div class="text-xs text-slate-500 uppercase tracking-wide font-medium">Ticket</div>
+          <h2 class="mono text-2xl font-semibold">#${id}</h2></div>
+          <div class="flex items-center gap-2">${FF.badge(c.status)}<button type="button" class="p-2 rounded-lg hover:bg-slate-100" data-d="close" aria-label="Close ticket details" data-autofocus><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        </div>
+        <dl class="mt-5 grid grid-cols-2 gap-4 text-sm">
+          <div><dt class="text-xs text-slate-500">Category</dt><dd class="font-medium">${esc(c.category)}</dd></div>
+          <div><dt class="text-xs text-slate-500">Filed</dt><dd class="font-medium">${FF.date(c.created_at)}</dd></div>
+          <div><dt class="text-xs text-slate-500">Customer</dt><dd class="font-medium">${esc(c.customer_name)}</dd></div>
+          <div><dt class="text-xs text-slate-500">Handler</dt><dd class="font-medium ${c.staff_name ? '' : 'text-slate-400'}">${esc(c.staff_name || 'Unassigned')}</dd></div>
+        </dl>
+        <div class="mt-6">${sec('Description')}<p class="text-sm leading-relaxed whitespace-pre-wrap break-words bg-slate-50 border border-line rounded-xl p-4">${esc(c.description)}</p></div>
+        ${c.outcome ? `<div class="mt-6">${sec('Outcome')}<p class="text-sm leading-relaxed whitespace-pre-wrap break-words rounded-xl p-4 border ${c.status === 'Resolved' ? 'bg-emerald-50 border-emerald-200' : c.status === 'Dismissed' ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-200'}">${esc(c.outcome)}</p></div>` : ''}
+        <div class="mt-6">${sec('Parcel')}
+          <div class="border border-line rounded-xl p-4">
+            <div class="flex items-start justify-between gap-3"><div class="min-w-0"><div class="mono font-semibold break-all">${esc(c.tracking_number)}</div><div class="text-sm text-slate-600">${esc(c.item_name)}</div></div>${FF.badge(c.parcel_status)}</div>
+            <ul class="mt-5">${FF.stepper(c.parcel_status)}</ul>
+          </div>
+        </div>
+        <div class="mt-8 pt-5 border-t border-line flex flex-wrap items-end gap-3">${actions}</div>
+      </div>`;
+    FF.icons();
+    const q = (s) => body.querySelector(s);
+    body.querySelectorAll('[data-d]').forEach((b) => b.addEventListener('click', () => {
+      const a = b.dataset.d;
+      if (a === 'close') drawer.m.close();
+      else if (a === 'take') takeTicket(id);
+      else if (a === 'resolve') closeModal(id, 'Resolved');
+      else if (a === 'dismiss') closeModal(id, 'Dismissed');
+      else if (a === 'reopen') reopen(id);
+    }));
+    if (q('#dAssign')) q('#dAssign').addEventListener('change', (e) => { if (e.target.value) assign(id, Number(e.target.value)); });
+    if (!first && !drawer.m.panel.contains(document.activeElement)) (q('[data-autofocus]') || q('button')).focus();
+  }
+
+  async function loadStaff() {
+    state.error = null;
+    try {
+      const [items, csrs] = await Promise.all([
+        fetchAll({}),
+        FF.apiFetch('/staff', { query: { role: 'Customer Service Representative', limit: 100 }, silent: true }),
+      ]);
+      state.items = items; state.csrs = csrs.data; state.loaded = true;
+    } catch (e) { state.error = e; if (state.loaded) showApiError(e); }
+    renderStaff();
+  }
+
+  // =====================================================================
+  //  CUSTOMER VIEW
+  // =====================================================================
+  const cust = { items: [], loaded: false, error: null };
+
+  function customerShell() {
+    $('pageTitle').textContent = 'My complaints';
+    $('pageSub').textContent = 'Something wrong with a parcel? Tell us and a representative will follow up.';
+    $('headerActions').innerHTML = `<button id="fileBtn" type="button" class="btn btn-primary"><i data-lucide="plus" class="w-4 h-4"></i> File a complaint</button>`;
+    $('fileBtn').addEventListener('click', () => fileModal());
+    $('view').addEventListener('click', (e) => { if (e.target.closest('[data-retry]')) loadCustomer(); });
+    renderCustomer();
+  }
+
+  function renderCustomer() {
+    const v = $('view');
+    if (cust.error && !cust.loaded) { v.innerHTML = errState(cust.error.message); FF.icons(); return; }
+    if (!cust.loaded) { v.innerHTML = '<div class="space-y-4">' + [1, 2, 3].map(() => '<div class="card p-6"><div class="skeleton h-5 w-56"></div><div class="skeleton h-4 w-full mt-4"></div><div class="skeleton h-4 w-2/3 mt-2"></div></div>').join('') + '</div>'; return; }
+    if (!cust.items.length) {
+      v.innerHTML = `<div class="card empty"><i data-lucide="message-square-warning" class="w-8 h-8 mx-auto text-slate-300"></i>
+        <p class="mt-3 font-semibold text-slate-700">You haven't filed any complaints.</p><p class="mt-1">If a parcel is late, damaged or wrongly billed, file a complaint and we'll look into it.</p>
+        <button type="button" class="btn btn-primary btn-sm mt-4" data-file><i data-lucide="plus" class="w-4 h-4"></i> File a complaint</button></div>`;
+      v.querySelector('[data-file]').addEventListener('click', () => fileModal());
+      FF.icons(); return;
+    }
+    v.innerHTML = `<p class="text-sm text-slate-500 mb-3">${cust.items.length} complaint${cust.items.length === 1 ? '' : 's'}</p><div class="space-y-4">` + cust.items.map((c) => `
+      <article class="card p-5 sm:p-6">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2"><span class="mono font-semibold">#${c.complaint_id}</span><span class="text-slate-300">•</span><span class="text-sm font-medium text-slate-700">${esc(c.category)}</span></div>
+            <div class="text-sm text-slate-600 mt-1"><span class="mono font-medium">${esc(c.tracking_number)}</span> <span class="text-slate-300 mx-1">•</span> ${esc(c.item_name)}</div>
+          </div>
+          ${FF.badge(c.status)}
+        </div>
+        <p class="mt-4 text-sm leading-relaxed whitespace-pre-wrap break-words">${esc(c.description)}</p>
+        <div class="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
+          <span>Filed ${FF.date(c.created_at)}</span>
+          <span>Handler: <span class="font-medium ${c.staff_name ? 'text-slate-700' : ''}">${esc(c.staff_name || 'Awaiting assignment')}</span></span>
+        </div>
+        ${c.outcome ? `<div class="mt-4 rounded-xl p-4 text-sm border ${c.status === 'Resolved' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}"><div class="text-xs font-semibold uppercase tracking-wide ${c.status === 'Resolved' ? 'text-emerald-700' : 'text-slate-500'} mb-1">${c.status === 'Resolved' ? 'Resolution' : 'Outcome'}</div><p class="whitespace-pre-wrap break-words">${esc(c.outcome)}</p></div>` : ''}
+      </article>`).join('') + '</div>';
+    FF.icons();
+  }
+
+  async function loadCustomer() {
+    cust.error = null;
+    try { cust.items = await fetchAll({ customer_id: session.customer_id }); cust.loaded = true; }
+    catch (e) { cust.error = e; if (cust.loaded) showApiError(e); }
+    renderCustomer();
+  }
+
+  async function fileModal(preselect = {}) {
+    let parcels = [];
+    try {
+      parcels = (await FF.apiFetch('/parcels', { query: { customer_id: session.customer_id, include: 'details', limit: 100 }, silent: true })).data;
+    } catch (e) { showApiError(e); return; }
+    let sel = null;
+    if (preselect.parcel_id) sel = parcels.find((p) => p.parcel_id === Number(preselect.parcel_id));
+    else if (preselect.tracking) sel = parcels.find((p) => p.tracking_number.toLowerCase() === String(preselect.tracking).toLowerCase());
+    if ((preselect.parcel_id || preselect.tracking) && !sel) FF.toast('That parcel isn\'t linked to your account, so it can\'t be selected.', 'warning');
+    const m = FF.openModal({
+      wide: true,
+      html: `<form id="fileForm" novalidate>
+        <div class="flex items-start gap-4">
+          <div class="w-11 h-11 rounded-xl bg-blue-50 text-royal grid place-items-center shrink-0"><i data-lucide="message-square-warning" class="w-5 h-5"></i></div>
+          <div><h2 class="text-lg font-bold">File a complaint</h2><p class="text-sm text-slate-500 mt-1">Choose a parcel you sent or received.</p></div>
+        </div>
+        <div class="mt-5"><label class="label" for="fParcel">Parcel <span class="text-rose-600">*</span></label>
+          <select id="fParcel" class="field" data-autofocus ${parcels.length ? '' : 'disabled'}>
+            <option value="">${parcels.length ? 'Select a parcel…' : 'No parcels on your account'}</option>
+            ${parcels.map((p) => `<option value="${p.parcel_id}" ${sel && sel.parcel_id === p.parcel_id ? 'selected' : ''}>${esc(p.tracking_number)} — ${esc(p.item_name)}</option>`).join('')}
+          </select><div class="err" id="eParcel" role="alert"></div></div>
+        <div class="mt-4"><label class="label" for="fCat">Category <span class="text-rose-600">*</span></label>
+          <select id="fCat" class="field"><option value="">Select a category…</option>${CATS.map((c) => `<option>${esc(c)}</option>`).join('')}</select><div class="err" id="eCat" role="alert"></div></div>
+        <div class="mt-4"><label class="label" for="fDesc">Description <span class="text-rose-600">*</span></label>
+          <textarea id="fDesc" class="field" maxlength="2000" placeholder="Tell us what happened…" aria-describedby="eDesc fCount"></textarea>
+          <div class="flex justify-between"><div class="err" id="eDesc" role="alert"></div><div class="text-xs text-slate-400 ml-auto" id="fCount">0 / 2000</div></div></div>
+        <div class="mt-6 flex justify-end gap-3">
+          <button type="button" class="btn btn-outline" data-close>Cancel</button>
+          <button type="submit" id="fSubmit" class="btn btn-primary" ${parcels.length ? '' : 'disabled'}>Submit complaint</button>
+        </div>
+      </form>`,
+    });
+    const p = m.panel, q = (s) => p.querySelector(s);
+    q('#fDesc').addEventListener('input', () => { q('#fCount').textContent = `${q('#fDesc').value.length} / 2000`; });
+    const FIELDS = { parcel_id: ['eParcel', 'fParcel'], category: ['eCat', 'fCat'], description: ['eDesc', 'fDesc'] };
+    const setErr = (field, msg) => {
+      const m2 = FIELDS[field]; if (!m2) return false;
+      q('#' + m2[0]).textContent = msg || ''; q('#' + m2[0]).classList.toggle('show', !!msg); q('#' + m2[1]).classList.toggle('invalid', !!msg);
+      return true;
+    };
+    q('#fileForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      Object.keys(FIELDS).forEach((f) => setErr(f, ''));
+      const body = { customer_id: session.customer_id, parcel_id: Number(q('#fParcel').value) || null, category: q('#fCat').value, description: q('#fDesc').value.trim() };
+      let bad = false;
+      if (!body.parcel_id) { setErr('parcel_id', 'Select the parcel this complaint is about.'); bad = true; }
+      if (!body.category) { setErr('category', 'Select a category.'); bad = true; }
+      if (!body.description) { setErr('description', 'Describe the problem.'); bad = true; }
+      if (bad) return (q('.invalid') || q('#fParcel')).focus();
+      const btn = q('#fSubmit'); btn.disabled = true;
+      try {
+        const res = await FF.apiFetch('/complaints', { method: 'POST', body, silent: true });
+        FF.toast(`Complaint #${res.complaint_id} filed. We'll be in touch.`, 'success');
+        m.close(true);
+        loadCustomer();
+      } catch (e) {
+        btn.disabled = false;
+        if (e.status === 422) {
+          let shown = false;
+          Object.entries(FF.fieldErrors(e)).forEach(([f, msg]) => { shown = setErr(f, msg) || shown; });
+          if (!shown) showApiError(e);
+        } else showApiError(e);
+      }
+    });
+  }
+
+  // =====================================================================
+  //  BOOT
+  // =====================================================================
+  if (IS_CUSTOMER) {
+    customerShell();
+    loadCustomer();
+    const params = new URLSearchParams(location.search);
+    if (params.get('parcel_id') || params.get('tracking')) {
+      fileModal({ parcel_id: params.get('parcel_id'), tracking: params.get('tracking') });
+      history.replaceState(null, '', location.pathname);
+    }
+  } else {
+    staffShell();
+    loadStaff();
+  }
+</script>
+</body>
+</html>
