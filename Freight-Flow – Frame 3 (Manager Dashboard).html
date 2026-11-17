@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Freight-Flow Express – Operations Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#fff; --text:#0f172a; --muted:#64748b; --faint:#94a3b8; --line:#e5e7eb;
+  --blue:#2563eb; --blue-soft:#eff4ff; --nav:#111a2e; --nav-text:#cbd5e1; --nav-muted:#64748b;
+  --amber:#f59e0b; --green:#10b981;
+  --transit-bg:#fef9e7; --transit-fg:#b45309; --pend-bg:#fef9e7; --pend-fg:#b45309; --deliv-bg:#e8f8f1; --deliv-fg:#047857;
+  --head:#f8fafc; --good:#047857;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1220; --surface:#121a2c; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#243049;
+    --blue-soft:#1b2a4d; --nav:#0a101e; --transit-bg:#3a2e0e; --pend-bg:#3a2e0e; --deliv-bg:#0f3327;
+    --transit-fg:#fbbf24; --pend-fg:#fbbf24; --deliv-fg:#34d399; --head:#16203a; --good:#34d399; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1220; --surface:#121a2c; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#243049;
+  --blue-soft:#1b2a4d; --nav:#0a101e; --transit-bg:#3a2e0e; --pend-bg:#3a2e0e; --deliv-bg:#0f3327;
+  --transit-fg:#fbbf24; --pend-fg:#fbbf24; --deliv-fg:#34d399; --head:#16203a; --good:#34d399; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* top bar */
+.top{height:64px;background:var(--surface);display:flex;align-items:center;padding:0 24px;gap:24px}
+.logo{width:164px;flex:none}
+.logo b{display:block;font-size:19px;font-weight:700;letter-spacing:.01em;line-height:1}
+.logo small{font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+.crumb{color:var(--muted);font-size:13px;flex:1}
+.roles{display:flex;align-items:center;gap:4px;color:var(--muted)}
+.roles span{margin-right:12px;font-size:13px}
+.roles button{background:none;border:0;padding:8px 16px;border-radius:6px;font-weight:500;font-size:13px;color:var(--text)}
+.roles button[aria-pressed="true"]{background:var(--blue-soft);color:var(--blue)}
+
+.shell{display:grid;grid-template-columns:188px 1fr;min-height:calc(100vh - 64px)}
+/* sidebar */
+.side{background:var(--nav);padding:20px 10px 16px;display:flex;flex-direction:column;color:var(--nav-text)}
+.side h6{margin:12px 10px 14px;font-size:10px;letter-spacing:.06em;color:var(--nav-muted);font-weight:600;text-transform:uppercase}
+.side nav{display:flex;flex-direction:column;gap:6px}
+.side nav a{display:flex;gap:14px;align-items:center;padding:11px 10px;border-radius:6px;color:var(--nav-text);text-decoration:none;font-weight:500;font-size:13.5px}
+.side nav a i{font-style:normal;font-size:10px;color:var(--nav-muted);width:14px}
+.side nav a[aria-current="page"]{background:var(--blue);color:#fff}
+.side nav a[aria-current="page"] i{color:#cfe0ff}
+.branch{margin-top:auto;background:#17223a;border-radius:8px;padding:14px 12px}
+.branch small{font-size:10px;letter-spacing:.05em;color:var(--nav-muted);font-weight:600;text-transform:uppercase}
+.branch p{margin:6px 0 8px;font-weight:500;font-size:13px;color:#fff}
+.ok{font-size:11px;color:#34d399;display:flex;align-items:center;gap:6px}
+.ok::before{content:"";width:6px;height:6px;border-radius:50%;background:#34d399}
+.signout{margin:18px 10px 0;color:var(--nav-text);font-size:13px;background:none;border:0;padding:0;text-align:left}
+
+/* main */
+main{padding:24px 27px 28px;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.03em;color:var(--blue);text-transform:uppercase;margin:0}
+.title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+h1{margin:6px 0 6px;font-size:30px;line-height:1.15;letter-spacing:-.01em;font-weight:700}
+.sub{margin:0;color:var(--muted);font-size:15px}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;font-size:13px;font-weight:500;min-width:112px;text-align:left}
+.btn:hover{background:var(--head)}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin:30px 0 20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.stat{padding:16px 16px 14px}
+.stat .lab{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;font-weight:500}
+.stat .lab::before{content:"";width:4px;height:17px;border-radius:2px;background:var(--c)}
+.stat strong{display:block;font-size:28px;font-weight:600;margin:6px 0 4px;letter-spacing:-.01em}
+.stat small{font-size:12px;color:var(--muted)}
+.stat small.good{color:var(--good)}
+
+.panels{display:grid;grid-template-columns:minmax(0,1fr) 332px;gap:20px;align-items:start}
+.panels.single{grid-template-columns:minmax(0,1fr)}
+.panels.single .assign{display:none}
+.list{padding:0;overflow:hidden}
+.list-top{padding:20px 18px 16px}
+.list-top .hd{display:flex;justify-content:space-between;align-items:baseline}
+h2{margin:0;font-size:18px;font-weight:600}
+.count{color:var(--muted);font-size:12px}
+.search{display:flex;justify-content:space-between;gap:12px;margin:20px 0 12px}
+.search input{flex:1;max-width:288px;height:32px;border:1px solid var(--line);border-radius:6px;padding:0 10px;background:var(--surface);font-size:12px}
+.search input::placeholder{color:var(--faint)}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chips button{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:116px;text-align:left;font-size:12px;font-weight:500;color:var(--muted)}
+.chips button[aria-pressed="true"]{background:var(--blue-soft);border-color:var(--blue-soft);color:var(--blue)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:520px}
+th{background:var(--head);text-align:left;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:12px 18px}
+td{padding:8px 18px;border-top:1px solid var(--line);vertical-align:middle;font-size:13px;height:33px}
+tbody tr.sel{background:var(--blue-soft)}
+.trk{font-weight:600;font-size:13px;display:block}
+.meta{font-size:10px;color:var(--faint)}
+.pill{display:inline-block;padding:5px 9px;border-radius:99px;font-size:11px;font-weight:500;min-width:88px}
+.pill.transit{background:var(--transit-bg);color:var(--transit-fg)}
+.pill.pending{background:var(--pend-bg);color:var(--pend-fg)}
+.pill.delivered{background:var(--deliv-bg);color:var(--deliv-fg)}
+.assign-btn{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:12px;font-weight:500;min-width:102px;text-align:left}
+.assign-btn:hover{border-color:var(--blue);color:var(--blue)}
+.empty td{text-align:center;color:var(--muted);padding:28px}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:22px 18px 18px;font-size:12px;color:var(--faint)}
+.pager{display:flex;gap:14px}
+.pager button{background:none;border:0;padding:2px 3px;color:var(--muted);font-size:12px}
+.pager button[aria-current="page"]{color:var(--text);font-weight:600}
+
+.assign{padding:16px 20px 24px}
+.assign .head{display:flex;justify-content:space-between;gap:12px}
+.assign h3{margin:8px 0 0;font-size:24px;font-weight:700;letter-spacing:-.01em}
+.assign .lede{margin:12px 0 18px;color:var(--muted);font-size:14px}
+.assign hr{border:0;border-top:1px solid var(--line);margin:0 0 20px}
+.k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.pay{display:flex;justify-content:space-between;align-items:center;margin:6px 0 2px}
+.pay strong{font-size:24px;font-weight:700}
+.paid{background:var(--deliv-bg);color:var(--deliv-fg);border-radius:99px;padding:8px 16px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px}
+.paid::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.ref{font-size:12px;color:var(--muted);margin:0 0 32px}
+label.k{display:block;font-size:14px;color:var(--text);font-weight:500;text-transform:none;letter-spacing:0;margin-bottom:12px}
+select{width:100%;height:42px;border:1px solid var(--line);border-radius:6px;padding:0 12px;background:var(--surface);font-weight:600;font-size:13px}
+.avail{font-size:12px;color:var(--muted);margin:14px 0 54px}
+.save{width:100%;height:42px;border:0;border-radius:6px;background:var(--blue);color:#fff;font-weight:600;font-size:13px;text-align:left;padding:0 20px}
+.save:hover{background:#1d4fd8}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+
+@media (max-width:1100px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .panels{grid-template-columns:1fr}
+}
+@media (max-width:800px){
+  .shell{grid-template-columns:1fr}
+  .side{flex-direction:row;overflow-x:auto;padding:8px;gap:8px;align-items:center}
+  .side h6,.branch,.signout,.side nav a i{display:none}
+  .side nav{flex-direction:row}
+  .side nav a{white-space:nowrap}
+  .top{height:auto;flex-wrap:wrap;padding:12px 16px;gap:8px}
+  .crumb{display:none}
+  .roles{flex-wrap:wrap}
+  .title-row{flex-direction:column}
+  h1{font-size:24px}
+  .search{flex-direction:column}
+  .search input{max-width:none}
+  .chips button{width:auto;flex:1 1 40%}
+}
+@media (max-width:520px){ .stats{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><b>FREIGHT—FLOW</b><small>EXPRESS</small></div>
+  <div class="crumb">Workspace / Operations</div>
+  <div class="roles" role="group" aria-label="View as">
+    <span>View As:</span>
+    <button aria-pressed="false">Customer</button>
+    <button aria-pressed="true">Manager</button>
+    <button aria-pressed="false">Courier</button>
+    <button aria-pressed="false">CSR</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="side">
+    <h6>Workspace</h6>
+    <nav aria-label="Primary">
+      <a href="#dashboard" aria-current="page"><i>01</i>Dashboard</a>
+      <a href="#bookings"><i>02</i>Bookings &amp; Parcels</a>
+      <a href="#team"><i>03</i>Delivery Team</a>
+      <a href="#payments"><i>04</i>Payments</a>
+      <a href="#complaints"><i>05</i>Complaints</a>
+      <a href="#branches"><i>06</i>Branches</a>
+      <a href="#staff"><i>07</i>Staff</a>
+    </nav>
+    <div class="branch">
+      <small>Manila Central</small>
+      <p>Main branch · PH-MNL</p>
+      <span class="ok">All systems operational</span>
+    </div>
+    <button class="signout">Sign out →</button>
+  </aside>
+
+  <main>
+    <p class="eyebrow">Operations overview</p>
+    <div class="title-row">
+      <div>
+        <h1>A clear view of every delivery.</h1>
+        <p class="sub">Manila Central · Monitor shipments and keep your team moving.</p>
+      </div>
+      <button class="btn">Export report</button>
+    </div>
+
+    <section class="stats" aria-label="Key figures">
+      <div class="card stat" style="--c:var(--blue)"><span class="lab">Total parcels</span><strong>1,284</strong><small>+12.4% this month</small></div>
+      <div class="card stat" style="--c:var(--amber)"><span class="lab">In Transit</span><strong>186</strong><small>Across 12 delivery routes</small></div>
+      <div class="card stat" style="--c:var(--green)"><span class="lab">Delivered</span><strong>1,042</strong><small class="good">98.2% on-time rate</small></div>
+      <div class="card stat" style="--c:var(--blue)"><span class="lab">Revenue collected</span><strong>₱193,242</strong><small>All payments reconciled</small></div>
+    </section>
+
+    <div class="panels" id="panels">
+      <section class="card list" aria-labelledby="bp">
+        <div class="list-top">
+          <div class="hd"><h2 id="bp">Bookings &amp; parcels</h2><span class="count" id="count">6 recent shipments</span></div>
+          <div class="search">
+            <input id="q" type="search" placeholder="Search e.g. FF-TRK-983421" aria-label="Search parcels">
+            <button class="btn" id="clear">Clear search</button>
+          </div>
+          <div class="chips" id="chips">
+            <button data-f="all" aria-pressed="true">All parcels</button>
+            <button data-f="transit" aria-pressed="false">In Transit</button>
+            <button data-f="pending" aria-pressed="false">Pending</button>
+            <button data-f="delivered" aria-pressed="false">Delivered</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tracking / Parcel</th><th>Receiver</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <div class="foot">
+          <span>Showing 6 of 1,284 parcels</span>
+          <div class="pager"><button aria-label="Previous page">‹</button><button aria-current="page">1</button><button>2</button><button>3</button><button aria-label="Next page">›</button></div>
+        </div>
+      </section>
+
+      <aside class="card assign" id="assign" aria-labelledby="ah">
+        <div class="head">
+          <div>
+            <p class="eyebrow">Assign delivery team</p>
+            <h3 id="ah">FF-TRK-983421</h3>
+          </div>
+          <button class="btn" id="close" style="min-width:0;align-self:flex-start">Close ×</button>
+        </div>
+        <p class="lede">Connect this parcel with the right courier.</p>
+        <hr>
+        <span class="k">1:1 Payment</span>
+        <div class="pay"><strong>₱150.50</strong><span class="paid">Paid</span></div>
+        <p class="ref">GCash · TXN-20261116-0842</p>
+        <label class="k" for="courier">Courier</label>
+        <select id="courier"></select>
+        <p class="avail" id="avail"></p>
+        <button class="save" id="save">Save Assignment</button>
+      </aside>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+var parcels=[
+ {id:"FF-TRK-983421",d:"Apparel · 1.00 kg",r:"Maria Cruz",s:"transit"},
+ {id:"FF-TRK-983420",d:"Documents · 0.25 kg",r:"Carlo Lim",s:"pending"},
+ {id:"FF-TRK-983419",d:"Homeware · 2.50 kg",r:"Anna Garcia",s:"delivered"},
+ {id:"FF-TRK-983418",d:"Accessories · 0.80 kg",r:"Lara Mendoza",s:"transit"},
+ {id:"FF-TRK-983417",d:"Books · 1.20 kg",r:"Paolo Diaz",s:"delivered"},
+ {id:"FF-TRK-983416",d:"Cosmetics · 0.60 kg",r:"Nina Ramos",s:"pending"}
+];
+var couriers=[
+ {n:"Joshua Reyes",i:"Available · Quezon City route · 8 active parcels"},
+ {n:"Ana Villanueva",i:"Available · Makati route · 5 active parcels"},
+ {n:"Miguel Santos",i:"On delivery · Pasig route · 11 active parcels"}
+];
+var label={transit:"In Transit",pending:"Pending",delivered:"Delivered"};
+var state={f:"all",q:"",sel:"FF-TRK-983421"};
+var $=function(i){return document.getElementById(i)};
+
+function render(){
+  var list=parcels.filter(function(p){
+    return (state.f==="all"||p.s===state.f)&&p.id.toLowerCase().indexOf(state.q.toLowerCase())>-1;
+  });
+  $("rows").innerHTML=list.length?list.map(function(p){
+    return '<tr class="'+(p.id===state.sel?'sel':'')+'"><td><span class="trk">'+p.id+'</span><span class="meta">'+p.d+'</span></td>'+
+      '<td>'+p.r+'</td><td><span class="pill '+p.s+'">'+label[p.s]+'</span></td>'+
+      '<td><button class="assign-btn" data-id="'+p.id+'">Assign team →</button></td></tr>';
+  }).join(""):'<tr class="empty"><td colspan="4">No parcels match. Clear the search or pick another status.</td></tr>';
+  $("count").textContent=list.length+" recent shipment"+(list.length===1?"":"s");
+}
+function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(function(){t.classList.remove("on")},2200)}
+function showAssign(id){state.sel=id;$("ah").textContent=id;$("panels").classList.remove("single");render()}
+
+$("courier").innerHTML=couriers.map(function(c){return "<option>"+c.n+"</option>"}).join("");
+$("courier").onchange=function(){$("avail").textContent=couriers[this.selectedIndex].i};
+$("avail").textContent=couriers[0].i;
+
+$("rows").onclick=function(e){var b=e.target.closest(".assign-btn");if(b)showAssign(b.dataset.id)};
+$("q").oninput=function(){state.q=this.value;render()};
+$("clear").onclick=function(){$("q").value="";state.q="";render()};
+$("chips").onclick=function(e){
+  var b=e.target.closest("button");if(!b)return;
+  state.f=b.dataset.f;
+  [].forEach.call($("chips").children,function(c){c.setAttribute("aria-pressed",c===b)});
+  render();
+};
+$("close").onclick=function(){$("panels").classList.add("single");state.sel=null;render()};
+$("save").onclick=function(){toast($("courier").value+" assigned to "+$("ah").textContent)};
+document.querySelector(".roles").onclick=function(e){
+  var b=e.target.closest("button");if(!b)return;
+  [].forEach.call(this.querySelectorAll("button"),function(x){x.setAttribute("aria-pressed",x===b)});
+};
+render();
+</script>
+</body>
+</html>

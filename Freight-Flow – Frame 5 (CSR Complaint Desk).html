@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Freight-Flow Express – Complaint Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#fff; --text:#0f172a; --muted:#64748b; --faint:#94a3b8; --line:#e5e7eb;
+  --blue:#2563eb; --blue-soft:#eff4ff; --nav:#111a2e; --nav-text:#cbd5e1; --nav-muted:#64748b;
+  --warn-bg:#fef9e7; --warn-fg:#b45309; --ok-bg:#e8f8f1; --ok-fg:#047857; --bad-bg:#fee9e9; --bad-fg:#dc2626;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1220; --surface:#121a2c; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#243049;
+    --blue-soft:#1b2a4d; --nav:#0a101e; --warn-bg:#3a2e0e; --warn-fg:#fbbf24; --ok-bg:#0f3327; --ok-fg:#34d399;
+    --bad-bg:#3b1618; --bad-fg:#f87171; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1220; --surface:#121a2c; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#243049;
+  --blue-soft:#1b2a4d; --nav:#0a101e; --warn-bg:#3a2e0e; --warn-fg:#fbbf24; --ok-bg:#0f3327; --ok-fg:#34d399;
+  --bad-bg:#3b1618; --bad-fg:#f87171; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.top{height:64px;background:var(--surface);display:flex;align-items:center;padding:0 24px;gap:24px}
+.logo{width:164px;flex:none}
+.logo b{display:block;font-size:19px;font-weight:700;letter-spacing:.01em;line-height:1}
+.logo small{font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+.crumb{color:var(--muted);font-size:13px;flex:1}
+.roles{display:flex;align-items:center;gap:4px;color:var(--muted)}
+.roles span{margin-right:12px;font-size:13px}
+.roles button{background:none;border:0;padding:8px 16px;border-radius:6px;font-weight:500;font-size:13px;color:var(--text)}
+.roles button[aria-pressed="true"]{background:var(--blue-soft);color:var(--blue)}
+
+.shell{display:grid;grid-template-columns:188px 1fr;min-height:calc(100vh - 64px)}
+.side{background:var(--nav);padding:20px 10px 16px;display:flex;flex-direction:column;color:var(--nav-text)}
+.side h6{margin:12px 10px 14px;font-size:10px;letter-spacing:.06em;color:var(--nav-muted);font-weight:600;text-transform:uppercase}
+.side nav{display:flex;flex-direction:column;gap:6px}
+.side nav a{display:flex;gap:14px;align-items:center;padding:11px 10px;border-radius:6px;color:var(--nav-text);text-decoration:none;font-weight:500;font-size:13.5px}
+.side nav a i{font-style:normal;font-size:10px;color:var(--nav-muted);width:14px}
+.side nav a[aria-current="page"]{background:var(--blue);color:#fff}
+.side nav a[aria-current="page"] i{color:#cfe0ff}
+.branch{margin-top:auto;background:#17223a;border-radius:8px;padding:14px 12px}
+.branch small{font-size:10px;letter-spacing:.05em;color:var(--nav-muted);font-weight:600;text-transform:uppercase}
+.branch p{margin:6px 0 8px;font-weight:500;font-size:13px;color:#fff}
+.ok{font-size:11px;color:#34d399;display:flex;align-items:center;gap:6px}
+.ok::before{content:"";width:6px;height:6px;border-radius:50%;background:#34d399}
+.signout{margin:18px 10px 0;color:var(--nav-text);font-size:13px;background:none;border:0;padding:0;text-align:left}
+
+main{padding:24px 27px 28px;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.03em;color:var(--blue);text-transform:uppercase;margin:0}
+.title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+h1{margin:6px 0 6px;font-size:30px;line-height:1.15;letter-spacing:-.01em;font-weight:700}
+.sub{margin:0;color:var(--muted);font-size:15px}
+.queue{margin-top:14px;background:var(--warn-bg);color:var(--warn-fg);border-radius:99px;padding:10px 32px;font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.queue::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.cols{display:grid;grid-template-columns:290px minmax(0,1fr);gap:20px;margin-top:30px;align-items:start}
+h2{margin:0;font-size:20px;font-weight:600}
+.k{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.02em}
+
+.inbox{padding:20px 9px 24px}
+.inbox h2,.inbox .k{padding:0 9px}
+.inbox .k{margin:18px 0 16px;display:block}
+.tk{display:block;width:100%;text-align:left;background:none;border:0;border-radius:10px;padding:12px 12px 14px;margin-bottom:6px}
+.tk:hover{background:var(--bg)}
+.tk[aria-current="true"]{background:var(--blue-soft)}
+.tk .r1{display:flex;justify-content:space-between;align-items:baseline}
+.tk .id{font-size:16px;font-weight:600}
+.tk[aria-current="true"] .id{color:var(--blue)}
+.tk .when{font-size:11px;color:var(--faint);margin-right:16px}
+.tk .trk{display:block;font-weight:500;margin:8px 0 6px}
+.tk .who{display:block;color:var(--muted);font-size:13px;margin-bottom:8px}
+.pill{display:inline-block;padding:5px 12px;border-radius:99px;font-size:11px;font-weight:500}
+.s-pending,.s-investigating{background:var(--warn-bg);color:var(--warn-fg)}
+.s-resolved{background:var(--ok-bg);color:var(--ok-fg)}
+.s-dismissed{background:var(--bad-bg);color:var(--bad-fg)}
+
+.detail{padding:22px 20px 28px}
+.dh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.dh h2{font-size:26px;font-weight:700;letter-spacing:-.01em}
+.dh .pill{font-size:13px;font-weight:600;padding:10px 20px;min-width:132px}
+.dh a{color:var(--blue);text-decoration:none;font-weight:500;display:inline-block;margin-top:4px}
+hr{border:0;border-top:1px solid var(--line);margin:20px 0}
+.issue .cat{display:block;font-weight:600;font-size:16px;margin:10px 0 12px}
+.issue p{margin:0;color:var(--muted);font-size:15px;max-width:44ch}
+h3{margin:0 0 20px;font-size:22px;font-weight:600}
+label,.lbl{display:block;color:var(--muted);font-size:13.5px;margin-bottom:8px}
+select{width:100%;height:42px;border:1px solid var(--line);border-radius:6px;padding:0 12px;background:var(--surface);font-weight:600;font-size:14px}
+.stat{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:0 0 22px}
+.stat button{background:var(--surface);border:1px solid var(--line);border-radius:6px;height:42px;padding:0 14px;text-align:left;font-weight:500;font-size:14px;color:var(--text)}
+.stat button[aria-pressed="true"]{background:var(--blue-soft);border-color:var(--blue-soft);color:var(--blue);font-weight:600}
+textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:6px;padding:12px;background:var(--surface);font-size:14px;line-height:1.45;resize:vertical;color:var(--muted)}
+.fine{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:26px;color:var(--muted);font-size:13.5px}
+.save{background:var(--blue);color:#fff;border:0;border-radius:6px;height:42px;padding:0 20px;min-width:156px;font-weight:600;font-size:14px;text-align:left}
+.save:hover{background:#1d4fd8}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+
+@media (max-width:1000px){.cols{grid-template-columns:1fr}}
+@media (max-width:800px){
+  .shell{grid-template-columns:1fr}
+  .side{flex-direction:row;overflow-x:auto;padding:8px;gap:8px;align-items:center}
+  .side h6,.branch,.signout,.side nav a i{display:none}
+  .side nav{flex-direction:row}
+  .side nav a{white-space:nowrap}
+  .top{height:auto;flex-wrap:wrap;padding:12px 16px;gap:8px}
+  .crumb{display:none}
+  .roles{flex-wrap:wrap}
+  .title-row{flex-direction:column}
+  .queue{margin-top:4px;padding:8px 20px}
+  h1{font-size:24px}
+  .stat{grid-template-columns:1fr 1fr}
+  .fine{flex-direction:column;align-items:stretch}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><b>FREIGHT—FLOW</b><small>EXPRESS</small></div>
+  <div class="crumb">Workspace / Support</div>
+  <div class="roles" role="group" aria-label="View as">
+    <span>View As:</span>
+    <button aria-pressed="false">Customer</button>
+    <button aria-pressed="false">Manager</button>
+    <button aria-pressed="false">Courier</button>
+    <button aria-pressed="true">CSR</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="side">
+    <h6>Workspace</h6>
+    <nav aria-label="Primary">
+      <a href="#desk" aria-current="page"><i>01</i>Complaint Desk</a>
+      <a href="#resolved"><i>02</i>Resolved tickets</a>
+    </nav>
+    <div class="branch">
+      <small>Manila Central</small>
+      <p>Main branch · PH-MNL</p>
+      <span class="ok">All systems operational</span>
+    </div>
+    <button class="signout">Sign out →</button>
+  </aside>
+
+  <main>
+    <p class="eyebrow">Customer support</p>
+    <div class="title-row">
+      <div>
+        <h1>Every issue deserves a resolution.</h1>
+        <p class="sub">A shared workspace for faster answers and happier customers.</p>
+      </div>
+      <span class="queue">8 tickets in queue</span>
+    </div>
+
+    <div class="cols">
+      <section class="card inbox" aria-labelledby="ti">
+        <h2 id="ti">Ticket inbox</h2>
+        <span class="k">Recent complaints</span>
+        <div id="inbox"></div>
+      </section>
+
+      <section class="card detail" aria-live="polite">
+        <div class="dh">
+          <div>
+            <h2 id="dtitle"></h2>
+            <a href="#track" id="dtrk"></a>
+          </div>
+          <span class="pill" id="dpill"></span>
+        </div>
+        <hr>
+        <div class="issue">
+          <span class="k">Issue details</span>
+          <span class="cat" id="dcat"></span>
+          <p id="dtext"></p>
+        </div>
+        <hr>
+        <h3>Resolution form</h3>
+        <label for="staff">CSR staff</label>
+        <select id="staff" style="margin-bottom:24px">
+          <option>Andrea Villanueva</option><option>Bryan Castillo</option><option>Carmela Dizon</option>
+        </select>
+        <span class="lbl">Status</span>
+        <div class="stat" id="stat">
+          <button data-s="pending" aria-pressed="false">Pending</button>
+          <button data-s="investigating" aria-pressed="false">Investigating</button>
+          <button data-s="resolved" aria-pressed="false">Resolved</button>
+          <button data-s="dismissed" aria-pressed="false">Dismissed</button>
+        </div>
+        <label for="outcome">Outcome</label>
+        <textarea id="outcome" placeholder="Describe what was done and what the customer was told."></textarea>
+        <div class="fine">
+          <span>Updates are recorded against this complaint.</span>
+          <button class="save" id="save">Save Resolution</button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+var T=[
+ {id:501,trk:"FF-TRK-983421",cat:"Delivery",who:"Alex Santos",when:"11:42 AM",st:"investigating",staff:"Andrea Villanueva",
+  text:"My parcel has not arrived at the expected time. Please check its current location and share an updated delivery schedule.",
+  out:"Coordinated with Manila Central. Parcel located at the QC hub. Customer notified of delivery on 17 Nov. Monitoring until received."},
+ {id:500,trk:"FF-TRK-983399",cat:"Damaged",who:"Nicole Reyes",when:"10:18 AM",st:"pending",staff:"Andrea Villanueva",
+  text:"My parcel arrived with a crushed corner and the contents are damaged. Please advise on a claim or replacement.",out:""},
+ {id:499,trk:"FF-TRK-983382",cat:"Billing",who:"Mark Flores",when:"Yesterday",st:"resolved",staff:"Bryan Castillo",
+  text:"I was charged twice for the same booking. Please review my payment and refund the duplicate.",
+  out:"Duplicate GCash charge confirmed and refunded. Customer notified by email."},
+ {id:498,trk:"FF-TRK-983375",cat:"Seller",who:"Ria Tan",when:"Yesterday",st:"dismissed",staff:"Carmela Dizon",
+  text:"I received a parcel I did not order from a seller I don’t recognize. Please remove it from my account.",
+  out:"No matching booking found for this account. Complaint dismissed after review."}
+];
+var NAME={pending:"Pending",investigating:"Investigating",resolved:"Resolved",dismissed:"Dismissed"};
+var cur=T[0],draft=cur.st;
+var $=function(i){return document.getElementById(i)};
+
+function renderList(){
+  $("inbox").innerHTML=T.map(function(t){
+    return '<button class="tk" data-id="'+t.id+'" aria-current="'+(t===cur)+'">'+
+      '<span class="r1"><span class="id">#'+t.id+'</span><span class="when">'+t.when+'</span></span>'+
+      '<span class="trk">'+t.trk+'</span><span class="who">'+t.cat+' · '+t.who+'</span>'+
+      '<span class="pill s-'+t.st+'">'+NAME[t.st]+'</span></button>';
+  }).join("");
+}
+function setDraft(s){
+  draft=s;
+  [].forEach.call($("stat").children,function(b){b.setAttribute("aria-pressed",b.dataset.s===s)});
+}
+function renderDetail(){
+  $("dtitle").textContent="Ticket #"+cur.id;
+  $("dtrk").textContent=cur.trk;
+  $("dpill").className="pill s-"+cur.st;$("dpill").textContent=NAME[cur.st];
+  $("dcat").textContent=cur.cat;$("dtext").textContent=cur.text;
+  $("staff").value=cur.staff;$("outcome").value=cur.out;
+  setDraft(cur.st);
+}
+function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(function(){t.classList.remove("on")},2200)}
+
+$("inbox").onclick=function(e){
+  var b=e.target.closest(".tk");if(!b)return;
+  cur=T.filter(function(t){return t.id==b.dataset.id})[0];
+  renderList();renderDetail();
+};
+$("stat").onclick=function(e){var b=e.target.closest("button");if(b)setDraft(b.dataset.s)};
+$("save").onclick=function(){
+  cur.st=draft;cur.staff=$("staff").value;cur.out=$("outcome").value;
+  renderList();renderDetail();
+  toast("Ticket #"+cur.id+" saved as "+NAME[cur.st]);
+};
+document.querySelector(".roles").onclick=function(e){
+  var b=e.target.closest("button");if(!b)return;
+  [].forEach.call(this.querySelectorAll("button"),function(x){x.setAttribute("aria-pressed",x===b)});
+};
+renderList();renderDetail();
+</script>
+</body>
+</html>

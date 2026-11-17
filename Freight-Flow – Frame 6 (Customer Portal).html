@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Freight-Flow Express – Customer Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#fff; --text:#0f172a; --muted:#64748b; --faint:#94a3b8; --line:#e5e7eb;
+  --blue:#2563eb; --blue-soft:#eff4ff; --nav:#111a2e; --nav-text:#cbd5e1; --nav-muted:#64748b;
+  --warn-bg:#fef9e7; --warn-fg:#b45309; --ok-bg:#e8f8f1; --ok-fg:#047857; --bad-bg:#fee9e9; --bad-fg:#dc2626;
+  --head:#f8fafc; --scrim:rgba(15,23,42,.45);
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1220; --surface:#121a2c; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#243049;
+    --blue-soft:#1b2a4d; --nav:#0a101e; --warn-bg:#3a2e0e; --warn-fg:#fbbf24; --ok-bg:#0f3327; --ok-fg:#34d399;
+    --bad-bg:#3b1618; --bad-fg:#f87171; --head:#16203a; --scrim:rgba(0,0,0,.6); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1220; --surface:#121a2c; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#243049;
+  --blue-soft:#1b2a4d; --nav:#0a101e; --warn-bg:#3a2e0e; --warn-fg:#fbbf24; --ok-bg:#0f3327; --ok-fg:#34d399;
+  --bad-bg:#3b1618; --bad-fg:#f87171; --head:#16203a; --scrim:rgba(0,0,0,.6); color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.top{height:64px;background:var(--surface);display:flex;align-items:center;padding:0 24px;gap:24px}
+.logo{width:164px;flex:none}
+.logo b{display:block;font-size:19px;font-weight:700;letter-spacing:.01em;line-height:1}
+.logo small{font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+.crumb{color:var(--muted);font-size:13px;flex:1}
+.roles{display:flex;align-items:center;gap:4px;color:var(--muted)}
+.roles span{margin-right:12px;font-size:13px}
+.roles button{background:none;border:0;padding:8px 16px;border-radius:6px;font-weight:500;font-size:13px;color:var(--text)}
+.roles button[aria-pressed="true"]{background:var(--blue-soft);color:var(--blue)}
+
+.shell{display:grid;grid-template-columns:188px 1fr;min-height:calc(100vh - 64px)}
+.side{background:var(--nav);padding:20px 10px 16px;display:flex;flex-direction:column;color:var(--nav-text)}
+.side h6{margin:12px 10px 14px;font-size:10px;letter-spacing:.06em;color:var(--nav-muted);font-weight:600;text-transform:uppercase}
+.side nav{display:flex;flex-direction:column;gap:6px}
+.side nav a{display:flex;gap:14px;align-items:center;padding:11px 10px;border-radius:6px;color:var(--nav-text);text-decoration:none;font-weight:500;font-size:13.5px}
+.side nav a i{font-style:normal;font-size:10px;color:var(--nav-muted);width:14px}
+.side nav a[aria-current="page"]{background:var(--blue);color:#fff}
+.side nav a[aria-current="page"] i{color:#cfe0ff}
+.branch{margin-top:auto;background:#17223a;border-radius:8px;padding:14px 12px}
+.branch small{font-size:10px;letter-spacing:.05em;color:var(--nav-muted);font-weight:600;text-transform:uppercase}
+.branch p{margin:6px 0 8px;font-weight:500;font-size:13px;color:#fff}
+.ok{font-size:11px;color:#34d399;display:flex;align-items:center;gap:6px}
+.ok::before{content:"";width:6px;height:6px;border-radius:50%;background:#34d399}
+.signout{margin:18px 10px 0;color:var(--nav-text);font-size:13px;background:none;border:0;padding:0;text-align:left}
+
+main{padding:24px 27px 28px;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.03em;color:var(--blue);text-transform:uppercase;margin:0}
+.title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+h1{margin:6px 0 6px;font-size:30px;line-height:1.15;letter-spacing:-.01em;font-weight:700}
+.sub{margin:0;color:var(--muted);font-size:15px}
+.date{margin:14px 52px 0 0;font-size:12px;color:var(--muted);text-transform:uppercase;white-space:nowrap}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+h2{margin:0;font-size:20px;font-weight:600}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:6px;height:38px;padding:0 16px;font-size:13px;font-weight:500;text-align:center}
+.btn:hover{background:var(--head)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.btn.primary:hover{background:#1d4fd8}
+
+.ship{margin-top:28px;overflow:hidden}
+.ship-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:22px 20px 18px;flex-wrap:wrap}
+.ship-top p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.ship-top .btns{display:flex;gap:20px}
+.ship-top .btn{height:42px;min-width:116px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}
+th{background:var(--head);text-align:left;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);padding:16px 20px}
+td{padding:12px 20px;border-top:1px solid var(--line);vertical-align:middle;font-size:14px}
+td.trk{font-weight:600}
+.meta{display:block;font-size:12px;color:var(--muted)}
+.pill{display:inline-block;padding:5px 12px;border-radius:99px;font-size:11px;font-weight:600}
+.s-transit,.s-pending,.s-out,.s-investigating{background:var(--warn-bg);color:var(--warn-fg)}
+.s-resolved,.s-delivered{background:var(--ok-bg);color:var(--ok-fg)}
+.s-cancelled{background:var(--bad-bg);color:var(--bad-fg)}
+.s-inv{background:var(--blue-soft);color:var(--blue)}
+.acts{display:flex;gap:20px;justify-content:flex-end}
+.acts .btn{height:40px;min-width:124px;color:var(--muted)}
+.acts .spacer{min-width:124px}
+
+.lower{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.2fr);gap:34px;margin-top:32px;align-items:start}
+.cmp,.prof{padding:22px 20px 22px}
+.cmp h2{margin-bottom:22px}
+.c{padding:0 0 16px;margin-bottom:16px;border-bottom:1px solid var(--line)}
+.c:last-child{border:0;margin:0;padding:0}
+.c .r{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.c .t{font-weight:500;font-size:15px}
+.c .pill{min-width:160px;text-align:left;padding:7px 20px;font-size:12px}
+.c .by{font-size:12px;font-weight:500;color:var(--muted);margin:14px 0 8px}
+.c p{margin:0;color:var(--muted);font-size:15px;line-height:1.5}
+.ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ph .btn{height:42px;min-width:208px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
+.grid .full{grid-column:1/-1}
+.pf{display:grid;grid-template-columns:2fr 1fr 1fr;gap:0 20px}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 6px}
+input,select,textarea{width:100%;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:14px;padding:0 16px;height:42px}
+textarea{height:auto;min-height:120px;padding:12px;line-height:1.45;resize:vertical}
+.note{margin:18px 0 0;font-size:12.5px;color:var(--muted)}
+
+.scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.scrim[hidden]{display:none}
+.modal{background:var(--surface);border-radius:12px;width:100%;max-width:640px;max-height:100%;overflow:auto;padding:26px 24px 30px;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+.mh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.mh h3{margin:0;font-size:22px;font-weight:700;letter-spacing:-.01em}
+.x{background:none;border:0;font-size:22px;line-height:1;color:var(--muted);padding:6px}
+.modal .lede{margin:6px 0 26px;color:var(--muted);font-size:15px}
+.hint{font-size:12.5px;color:var(--muted);margin:8px 0 18px}
+.err{color:var(--bad-fg);font-size:12.5px;margin:6px 0 0;min-height:18px}
+.mf{display:flex;justify-content:flex-end;gap:14px;margin-top:22px}
+.mf .btn{height:42px;min-width:96px}
+.mf .primary{min-width:156px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
+.toast.on{opacity:1}
+
+@media (max-width:1000px){.lower{grid-template-columns:1fr}}
+@media (max-width:800px){
+  .shell{grid-template-columns:1fr}
+  .side{flex-direction:row;overflow-x:auto;padding:8px;gap:8px;align-items:center}
+  .side h6,.branch,.signout,.side nav a i{display:none}
+  .side nav{flex-direction:row}
+  .side nav a{white-space:nowrap}
+  .top{height:auto;flex-wrap:wrap;padding:12px 16px;gap:8px}
+  .crumb{display:none}
+  .roles{flex-wrap:wrap}
+  .title-row{flex-direction:column;gap:0}
+  .date{margin:8px 0 0}
+  h1{font-size:24px}
+  .ship-top .btns{gap:10px}
+  .grid,.pf{grid-template-columns:1fr}
+  .ph{flex-direction:column;align-items:stretch;gap:10px}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><b>FREIGHT—FLOW</b><small>EXPRESS</small></div>
+  <div class="crumb">Workspace / Customer</div>
+  <div class="roles" role="group" aria-label="View as">
+    <span>View As:</span>
+    <button aria-pressed="true">Customer</button>
+    <button aria-pressed="false">Manager</button>
+    <button aria-pressed="false">Courier</button>
+    <button aria-pressed="false">CSR</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="side">
+    <h6>Workspace</h6>
+    <nav aria-label="Primary">
+      <a href="#shipments" aria-current="page"><i>01</i>My Shipments</a>
+      <a href="#new" id="navNew"><i>02</i>New Booking</a>
+      <a href="#complaints"><i>03</i>Complaints</a>
+      <a href="#profile"><i>04</i>Profile</a>
+    </nav>
+    <div class="branch">
+      <small>Manila Central</small>
+      <p>Personal account</p>
+      <span class="ok">All systems operational</span>
+    </div>
+    <button class="signout">Sign out →</button>
+  </aside>
+
+  <main>
+    <p class="eyebrow">Customer portal</p>
+    <div class="title-row">
+      <div>
+        <h1>Your shipments, all in one place.</h1>
+        <p class="sub">Track sent and received parcels, manage your details, and get support.</p>
+      </div>
+      <span class="date">Mon, 16 Nov 2026</span>
+    </div>
+
+    <section class="card ship" id="shipments" aria-labelledby="ms">
+      <div class="ship-top">
+        <div><h2 id="ms">My Shipments</h2><p>Sent &amp; received · 4 parcels</p></div>
+        <div class="btns"><button class="btn">All shipments</button><button class="btn primary" data-new>+ New Booking</button></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tracking #</th><th>Role</th><th>Other party</th><th>Status</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="lower">
+      <section class="card cmp" id="complaints" aria-labelledby="mc">
+        <h2 id="mc">My Complaints &amp; Outcomes</h2>
+        <div id="cmps"></div>
+      </section>
+
+      <section class="card prof" id="profile" aria-labelledby="mp">
+        <div class="ph"><h2 id="mp">My Profile</h2><button class="btn primary" id="saveProf">Save changes</button></div>
+        <div class="grid">
+          <div><label for="pc">Contact Info</label><input id="pc" value="Alex Santos · 0917 555 0198"></div>
+          <div><label for="pe">Email</label><input id="pe" type="email" value="alex.santos@email.com"></div>
+          <div class="pf" style="grid-column:1/-1">
+            <div><label for="pa">Address</label><input id="pa" value="18 Mabini St, Manila"></div>
+            <div><label for="ps">Customer subtype</label><input id="ps" value="Individual"></div>
+            <div><label for="po">Occupation</label><input id="po" value="Designer"></div>
+          </div>
+        </div>
+        <p class="note">Personal details are used for booking and delivery updates.</p>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+    <div class="mh">
+      <h3 id="mt"></h3>
+      <button class="x" id="x" aria-label="Close">✕</button>
+    </div>
+    <p class="lede">Tell us what happened. Our support team will review your issue.</p>
+    <label for="cat" style="margin-top:0">Category</label>
+    <select id="cat">
+      <option>Delivery Issue</option><option>Seller Dispute</option><option>Billing Issue</option><option>Damaged Item</option>
+    </select>
+    <p class="hint">Delivery Issue · Seller Dispute · Billing Issue · Damaged Item</p>
+    <label for="desc">Description</label>
+    <textarea id="desc"></textarea>
+    <p class="err" id="err" role="alert"></p>
+    <div class="mf"><button class="btn" id="cancel">Cancel</button><button class="btn primary" id="submit">Submit Complaint</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var ships=[
+ {id:"FF-TRK-983421",role:"Sent",who:"Maria Cruz",st:"transit",l:"In Transit"},
+ {id:"FF-TRK-983425",role:"Sent",who:"Carlo Lim",st:"pending",l:"Pending",c:1},
+ {id:"FF-TRK-983418",role:"Received",who:"Paolo Diaz",st:"out",l:"Out for Delivery"},
+ {id:"FF-TRK-983429",role:"Received",who:"Nina Ramos",st:"pending",l:"Pending",c:1}
+];
+var cmps=[
+ {n:499,trk:"FF-TRK-983382",cat:"Billing Issue",st:"resolved",l:"Resolved",by:"Andrea Villanueva",
+  txt:"Duplicate charge reviewed. ₱150.50 refunded to your original payment method on 15 Nov 2026."},
+ {n:501,trk:"FF-TRK-983421",cat:"Delivery Issue",st:"inv",l:"Investigating"}
+];
+var nextN=502,target=null,lastFocus=null;
+var DEFAULT="My parcel has not arrived at the expected time. Please check its current location and share an updated delivery schedule.";
+
+function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(function(){t.classList.remove("on")},2400)}
+function rows(){
+  $("rows").innerHTML=ships.map(function(s,i){
+    return '<tr><td class="trk">'+s.id+'</td><td>'+s.role+'</td><td>'+s.who+'</td><td><span class="pill s-'+s.st+'">'+s.l+'</span></td>'+
+    '<td><div class="acts">'+(s.c?'<button class="btn" data-a="cancel" data-i="'+i+'">Cancel Booking</button>':'<span class="spacer"></span>')+
+    '<button class="btn" data-a="report" data-i="'+i+'">Report Issue</button></div></td></tr>';
+  }).join("");
+}
+function complaints(){
+  $("cmps").innerHTML=cmps.map(function(c){
+    return '<div class="c"><div class="r"><span class="t">#'+c.n+' · '+c.trk+' · '+c.cat+'</span><span class="pill s-'+c.st+'">'+c.l+'</span></div>'+
+    (c.by?'<div class="by">CSR resolution · '+c.by+'</div><p>'+c.txt+'</p>':'')+'</div>';
+  }).join("");
+}
+function openModal(id){
+  lastFocus=document.activeElement;target=id;
+  $("mt").textContent="Submit Complaint — "+id;
+  $("desc").value=DEFAULT;$("cat").selectedIndex=0;$("err").textContent="";
+  $("scrim").hidden=false;$("cat").focus();
+}
+function closeModal(){$("scrim").hidden=true;if(lastFocus&&lastFocus.focus)lastFocus.focus()}
+
+$("rows").onclick=function(e){
+  var b=e.target.closest("button");if(!b)return;
+  var s=ships[b.dataset.i];
+  if(b.dataset.a==="report")openModal(s.id);
+  else if(confirm("Cancel booking "+s.id+"?")){s.st="cancelled";s.l="Cancelled";s.c=0;rows();toast(s.id+" cancelled")}
+};
+$("x").onclick=$("cancel").onclick=closeModal;
+$("scrim").onclick=function(e){if(e.target===this)closeModal()};
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!$("scrim").hidden)closeModal()});
+$("submit").onclick=function(){
+  var d=$("desc").value.trim();
+  if(!d){$("err").textContent="Add a short description so support can review your issue.";$("desc").focus();return}
+  cmps.push({n:nextN++,trk:target,cat:$("cat").value,st:"pending",l:"Pending"});
+  complaints();closeModal();toast("Complaint #"+(nextN-1)+" submitted for "+target);
+};
+$("saveProf").onclick=function(){toast("Profile changes saved")};
+document.querySelector("[data-new]").onclick=$("navNew").onclick=function(e){e.preventDefault();toast("New booking form isn’t part of this frame yet")};
+document.querySelector(".roles").onclick=function(e){
+  var b=e.target.closest("button");if(!b)return;
+  [].forEach.call(this.querySelectorAll("button"),function(x){x.setAttribute("aria-pressed",x===b)});
+};
+rows();complaints();
+openModal("FF-TRK-983421"); /* matches the frame: modal open on load */
+</script>
+</body>
+</html>
