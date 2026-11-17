@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Freight-Flow | My Profile</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="logo">FREIGHT—FLOW<small>EXPRESS</small></div>
+  <nav><a class="on" href="profile.html">Profile</a><a href="#" id="signout">Sign out →</a></nav>
+</header>
+
+<main>
+  <div class="eyebrow">Customer portal</div>
+  <h1>My profile</h1>
+  <p class="sub">Your details are used for booking and delivery updates.</p>
+
+  <div class="profile">
+    <aside class="card">
+      <div class="avatar" id="avatar">?</div>
+      <h2 id="p-name">Loading…</h2>
+      <span class="badge" id="p-type"></span>
+      <div class="meta">Customer ID: <b id="p-id"></b></div>
+      <div class="meta" id="p-since"></div>
+    </aside>
+
+    <section class="card">
+      <form id="edit">
+        <label for="name">Name</label>
+        <input id="name" name="name" required maxlength="100">
+        <label for="contact_information">Contact info · Email / mobile</label>
+        <input id="contact_information" name="contact_information" required maxlength="150">
+        <label for="address">Address</label>
+        <input id="address" name="address" required maxlength="200">
+        <label for="account_type">Account type</label>
+        <input id="account_type" readonly>
+        <p class="hint">Account type cannot be changed after registration.</p>
+
+        <!-- extra fields are generated here depending on account type -->
+        <div id="extras"></div>
+
+        <div class="actions">
+          <button class="btn" type="submit" id="save">Save changes</button>
+          <button class="btn ghost" type="button" id="reset">Cancel</button>
+        </div>
+        <div class="actions"><button class="btn danger" type="button" id="del">Delete account</button></div>
+      </form>
+    </section>
+  </div>
+</main>
+
+<script src="app.js"></script>
+<script>
+// Extra fields per account type: [api field, label, input kind, required]
+const EXTRA = {
+  'Retail': [],
+  'E-Commerce': [
+    ['store_name', 'Store name', 'text', true],
+    ['business_registration_number', 'Business registration no.', 'text', true],
+    ['return_address_override', 'Return address override (optional)', 'text', false]
+  ],
+  'Non-Profit': [
+    ['charity_registration_number', 'Charity registration no.', 'text', true],
+    ['donor_reference_codes', 'Donor reference codes (comma-separated)', 'list', false],
+    ['tax_exempt_status', 'Tax exempt organisation', 'checkbox', false]
+  ]
+};
+
+let customer = store.get();
+if (!customer) location.replace('index.html');
+const form = document.getElementById('edit');
+const $ = id => document.getElementById(id);
+
+function render() {
+  $('avatar').textContent = (customer.name || '?').charAt(0).toUpperCase();
+  $('p-name').textContent = customer.name;
+  $('p-type').textContent = customer.account_type;
+  $('p-id').textContent = customer.customer_id;
+  $('p-since').textContent = customer.created_at ? 'Member since ' + new Date(customer.created_at).toLocaleDateString() : '';
+  ['name', 'contact_information', 'address'].forEach(k => $(k).value = customer[k] || '');
+  $('account_type').value = customer.account_type;
+
+  const box = $('extras');
+  box.textContent = '';
+  (EXTRA[customer.account_type] || []).forEach(([key, label, kind, req]) => {
+    const wrap = document.createElement('div');
+    const lab = document.createElement('label');
+    lab.htmlFor = 'x-' + key;
+    const inp = document.createElement('input');
+    inp.id = 'x-' + key;
+    inp.name = key;
+    inp.required = req;
+    if (kind === 'checkbox') {
+      inp.type = 'checkbox';
+      inp.checked = !!customer[key];
+      lab.className = 'check';
+      lab.append(inp, ' ' + label);
+      wrap.append(lab);
+    } else {
+      lab.textContent = label;
+      inp.value = kind === 'list' ? (customer[key] || []).join(', ') : (customer[key] || '');
+      wrap.append(lab, inp);
+    }
+    box.append(wrap);
+  });
+}
+if (customer) render();
+
+// Refresh from the API when it is running
+if (customer) api('/customers/' + customer.customer_id).then(c => { customer = c; store.set(c); render(); }).catch(() => {});
+
+$('reset').onclick = render;
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!form.reportValidity()) return;
+  // PATCH body: only editable fields (account_type is never sent)
+  const body = {
+    name: $('name').value.trim(),
+    contact_information: $('contact_information').value.trim(),
+    address: $('address').value.trim()
+  };
+  (EXTRA[customer.account_type] || []).forEach(([key, , kind]) => {
+    const el = $('x-' + key);
+    if (kind === 'checkbox') body[key] = el.checked;
+    else if (kind === 'list') body[key] = el.value.split(',').map(s => s.trim()).filter(Boolean);
+    else if (el.value.trim() || customer[key]) body[key] = el.value.trim();
+  });
+
+  $('save').disabled = true;
+  try {
+    customer = await api('/customers/' + customer.customer_id, { method: 'PATCH', body: JSON.stringify(body) });
+    store.set(customer);
+    render();
+    toast('Profile updated.', 'ok');
+  } catch (err) {
+    if (err.status) toast(errorText(err), 'err');
+    else {
+      customer = Object.assign({}, customer, body, { updated_at: new Date().toISOString() });
+      store.set(customer);
+      render();
+      toast('API unreachable. Saved locally (demo mode).', 'ok');
+    }
+  } finally { $('save').disabled = false; }
+});
+
+$('del').onclick = async () => {
+  if (!confirm('Delete your account? This cannot be undone.')) return;
+  try { await api('/customers/' + customer.customer_id, { method: 'DELETE' }); }
+  catch (err) {
+    if (err.status) return toast(errorText(err), 'err'); // e.g. 409 when the customer still has bookings
+  }
+  store.clear();
+  location.href = 'index.html';
+};
+
+$('signout').onclick = e => { e.preventDefault(); store.clear(); location.href = 'index.html'; };
+</script>
+</body>
+</html>

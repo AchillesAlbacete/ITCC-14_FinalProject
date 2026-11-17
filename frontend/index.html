@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Freight-Flow | Login or Register</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="logo">FREIGHT—FLOW<small>EXPRESS</small></div>
+  <nav><a class="on" href="index.html">Login</a><a href="profile.html">Profile</a></nav>
+</header>
+
+<main>
+  <div class="split">
+    <!-- LOGIN -->
+    <section class="left">
+      <div class="eyebrow">Good things. Delivered.</div>
+      <h1>Every parcel.<br>Every possibility.</h1>
+      <p>A smarter way to send, track, and manage your deliveries across the Philippines.</p>
+      <hr>
+      <h2>Welcome back</h2>
+      <p>Log in to your Freight-Flow account.</p>
+      <form id="login">
+        <label for="l-email">Email address</label>
+        <input id="l-email" type="email" required placeholder="alex.santos@email.com">
+        <label for="l-pass">Password</label>
+        <input id="l-pass" type="password" required minlength="6" placeholder="••••••••">
+        <button class="btn" type="submit">Log in →</button>
+      </form>
+    </section>
+
+    <!-- REGISTER -->
+    <section class="right">
+      <div class="eyebrow">Get started</div>
+      <h1>Create your account</h1>
+      <p class="sub">One account, a world of delivery possibilities.</p>
+
+      <form id="reg">
+        <label>Account type</label>
+        <div class="tabs" role="tablist" id="tabs">
+          <button type="button" role="tab" data-type="Retail" aria-selected="true">Retail</button>
+          <button type="button" role="tab" data-type="E-Commerce" aria-selected="false">E-Commerce</button>
+          <button type="button" role="tab" data-type="Non-Profit" aria-selected="false">Non-Profit</button>
+        </div>
+        <p class="hint" id="hint"></p>
+
+        <!-- Retail: first + last name -->
+        <div class="grp row" data-types="Retail">
+          <div><label for="first">First name</label><input id="first" name="first" required placeholder="Alex"></div>
+          <div><label for="last">Last name</label><input id="last" name="last" required placeholder="Santos"></div>
+        </div>
+
+        <!-- E-Commerce / Non-Profit: one organisation name -->
+        <div class="grp" data-types="E-Commerce Non-Profit">
+          <label for="org">Business / organisation name</label>
+          <input id="org" name="org" required placeholder="Name on your account">
+        </div>
+
+        <!-- E-Commerce only -->
+        <div class="grp" data-types="E-Commerce">
+          <div class="row">
+            <div><label for="store">Store name</label><input id="store" name="store_name" required placeholder="Juan’s Gadgets"></div>
+            <div><label for="brn">Business registration no.</label><input id="brn" name="business_registration_number" required placeholder="DTI-2026-004512"></div>
+          </div>
+          <label for="ret">Return address override <span class="hint">(optional)</span></label>
+          <input id="ret" name="return_address_override" placeholder="Warehouse B, Carmen, Cagayan de Oro">
+        </div>
+
+        <!-- Non-Profit only -->
+        <div class="grp" data-types="Non-Profit">
+          <label for="crn">Charity registration no.</label>
+          <input id="crn" name="charity_registration_number" required placeholder="SEC-CH-2019-0873">
+          <label for="donor">Donor reference codes <span class="hint">(optional, comma-separated)</span></label>
+          <input id="donor" name="donor_reference_codes" placeholder="DON-2026-001, DON-2026-002">
+          <label class="check"><input type="checkbox" id="tax" name="tax_exempt_status"> Tax exempt organisation</label>
+        </div>
+
+        <label for="contact">Contact info · Email / mobile</label>
+        <input id="contact" name="contact" required placeholder="alex.santos@email.com · 0917 555 0198">
+        <label for="addr">Address</label>
+        <input id="addr" name="address" required placeholder="128 Mabini St, Brgy. Poblacion, Makati City">
+
+        <p class="fine">By continuing, you agree to our Terms of Service and Privacy Policy.</p>
+        <button class="btn" type="submit" id="reg-btn">Create account →</button>
+      </form>
+    </section>
+  </div>
+</main>
+
+<script src="app.js"></script>
+<script>
+const HINTS = {
+  'Retail': 'Personal deliveries, made simple.',
+  'E-Commerce': 'For online sellers. Bulk booking and return address options.',
+  'Non-Profit': 'For charities and foundations. Tax-exempt billing supported.'
+};
+let type = 'Retail';
+const form = document.getElementById('reg');
+
+function setType(t) {
+  type = t;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.type === t));
+  document.getElementById('hint').textContent = HINTS[t];
+  document.querySelectorAll('.grp').forEach(g => {
+    const show = g.dataset.types.split(' ').includes(t);
+    g.hidden = !show;
+    g.querySelectorAll('input').forEach(i => i.disabled = !show); // hidden fields skip validation
+  });
+}
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) setType(b.dataset.type);
+});
+setType('Retail');
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!form.reportValidity()) return;
+  const v = n => (form.elements[n] && !form.elements[n].disabled ? form.elements[n].value.trim() : '');
+
+  // Build the body exactly as the POST /customers schema expects
+  const payload = {
+    name: type === 'Retail' ? (v('first') + ' ' + v('last')).trim() : v('org'),
+    contact_information: v('contact'),
+    account_type: type,
+    address: v('address')
+  };
+  if (type === 'E-Commerce') {
+    payload.store_name = v('store_name');
+    payload.business_registration_number = v('business_registration_number');
+    if (v('return_address_override')) payload.return_address_override = v('return_address_override');
+  }
+  if (type === 'Non-Profit') {
+    payload.tax_exempt_status = document.getElementById('tax').checked;
+    payload.charity_registration_number = v('charity_registration_number');
+    const codes = v('donor_reference_codes').split(',').map(s => s.trim()).filter(Boolean);
+    if (codes.length) payload.donor_reference_codes = codes;
+  }
+
+  const btn = document.getElementById('reg-btn');
+  btn.disabled = true;
+  try {
+    const customer = await api('/customers', { method: 'POST', body: JSON.stringify(payload) });
+    store.set(customer);
+    location.href = 'profile.html';
+  } catch (err) {
+    if (err.status) { toast(errorText(err), 'err'); }
+    else {
+      // API not running: save locally so the pages can still be demoed
+      store.set(Object.assign({ customer_id: Date.now() % 100000, created_at: new Date().toISOString() }, payload));
+      toast('API unreachable. Continuing in demo mode.', 'ok');
+      setTimeout(() => location.href = 'profile.html', 900);
+    }
+  } finally { btn.disabled = false; }
+});
+
+document.getElementById('login').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = document.getElementById('l-email').value.trim();
+  const password = document.getElementById('l-pass').value;
+  try {
+    // /auth/login is not in the OpenAPI draft yet. Add it, or change this call.
+    const res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    store.set(res.customer);
+    location.href = 'profile.html';
+  } catch (err) {
+    if (err.status) return toast(errorText(err), 'err');
+    const saved = store.get(); // demo mode: match against the account registered in this browser
+    if (saved && saved.contact_information.toLowerCase().includes(email.toLowerCase())) location.href = 'profile.html';
+    else toast('API unreachable and no demo account found. Register first.', 'err');
+  }
+});
+</script>
+</body>
+</html>
