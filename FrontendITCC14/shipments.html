@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freight-Flow - My Shipments</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <!-- Navbar -->
+    <nav class="bg-blue-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <span class="text-xl font-bold tracking-wider text-orange-400">FRIGHT-FLOW</span>
+                <span class="text-xs bg-blue-800 px-2 py-1 rounded">Customer Portal</span>
+            </div>
+            <div class="space-x-4">
+                <a href="shipments.html" class="font-semibold text-orange-300">My Shipments</a>
+                <a href="courier.html" class="hover:text-orange-300">Courier Queue</a>
+                <a href="complaints.html" class="hover:text-orange-300">CSR Desk</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">Sent & Received Shipments</h1>
+                <p class="text-sm text-slate-500">Track your active parcel bookings and report delivery issues.</p>
+            </div>
+            <button onclick="openModal()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium shadow transition">
+                + Report New Issue
+            </button>
+        </div>
+
+        <!-- Shipments Table -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-100 text-slate-700 text-xs uppercase tracking-wider">
+                        <th class="p-4">Tracking No.</th>
+                        <th class="p-4">Item Name</th>
+                        <th class="p-4">Weight</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 text-sm">
+                    <tr>
+                        <td class="p-4 font-mono text-blue-600 font-semibold">TRK-2026-9081</td>
+                        <td class="p-4">Mechanical Keyboard</td>
+                        <td class="p-4">1.2 kg</td>
+                        <td class="p-4"><span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-medium">In Transit</span></td>
+                        <td class="p-4"><button onclick="openModal('TRK-2026-9081')" class="text-blue-600 hover:underline">Report Issue</button></td>
+                    </tr>
+                    <tr>
+                        <td class="p-4 font-mono text-blue-600 font-semibold">TRK-2026-4432</td>
+                        <td class="p-4">Graphics Card RTX 3070</td>
+                        <td class="p-4">2.1 kg</td>
+                        <td class="p-4"><span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-medium">Delivered</span></td>
+                        <td class="p-4"><button onclick="openModal('TRK-2026-4432')" class="text-blue-600 hover:underline">Report Issue</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Report Issue Modal -->
+    <div id="issueModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
+            <h2 class="text-lg font-bold mb-4">Report Parcel Issue</h2>
+            <form id="issueForm" onsubmit="submitIssue(event)">
+                <div class="mb-4">
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Tracking Number</label>
+                    <input type="text" id="modalTrackingNo" class="w-full border rounded p-2 bg-slate-50 font-mono" readonly value="TRK-2026-9081">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Issue Description</label>
+                    <textarea class="w-full border rounded p-2 h-24" placeholder="Describe the problem (e.g., delayed, damaged package)..." required></textarea>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 bg-slate-200 rounded text-slate-700">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-900 text-white rounded">Submit Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openModal(trk) {
+            if(trk) document.getElementById('modalTrackingNo').value = trk;
+            document.getElementById('issueModal').classList.remove('hidden');
+        }
+        function closeModal() {
+            document.getElementById('issueModal').classList.add('hidden');
+        }
+        function submitIssue(e) {
+            e.preventDefault();
+            alert('Issue ticket successfully submitted to CSR desk!');
+            closeModal();
+        }
+    </script>
+</body>
+</html>

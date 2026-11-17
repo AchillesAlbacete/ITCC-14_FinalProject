@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freight-Flow - CSR Complaint Desk</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <!-- Navbar -->
+    <nav class="bg-blue-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <span class="text-xl font-bold tracking-wider text-orange-400">FRIGHT-FLOW</span>
+                <span class="text-xs bg-blue-800 px-2 py-1 rounded">Customer Support Desk</span>
+            </div>
+            <div class="space-x-4">
+                <a href="shipments.html" class="hover:text-orange-300">My Shipments</a>
+                <a href="courier.html" class="hover:text-orange-300">Courier Queue</a>
+                <a href="complaints.html" class="font-semibold text-orange-300">CSR Desk</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <h1 class="text-2xl font-bold text-slate-900 mb-2">Customer Service Resolution Desk</h1>
+        <p class="text-sm text-slate-500 mb-6">Review customer feedback tickets, investigate parcel issues, and resolve support logs.</p>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-100 text-slate-700 text-xs uppercase tracking-wider">
+                        <th class="p-4">Ticket ID</th>
+                        <th class="p-4">Tracking No.</th>
+                        <th class="p-4">Description</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 text-sm">
+                    <tr>
+                        <td class="p-4 font-mono font-medium">CMP-501</td>
+                        <td class="p-4 font-mono text-blue-600">TRK-2026-9081</td>
+                        <td class="p-4">Package has been stuck at sorting branch for 3 days.</td>
+                        <td class="p-4"><span id="ticket-status-501" class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-medium">Open</span></td>
+                        <td class="p-4">
+                            <button onclick="resolveTicket('501')" class="bg-blue-900 hover:bg-blue-800 text-white px-3 py-1 rounded text-xs">Resolve Ticket</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        function resolveTicket(ticketId) {
+            const badge = document.getElementById(`ticket-status-${ticketId}`);
+            badge.innerText = "Resolved";
+            badge.className = "bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-medium";
+            alert(`Ticket CMP-${ticketId} marked as Resolved and closed.`);
+        }
+    </script>
+</body>
+</html>

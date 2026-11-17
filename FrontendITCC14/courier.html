@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freight-Flow - Courier Action Queue</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <!-- Navbar -->
+    <nav class="bg-blue-900 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <span class="text-xl font-bold tracking-wider text-orange-400">FRIGHT-FLOW</span>
+                <span class="text-xs bg-blue-800 px-2 py-1 rounded">Courier Dispatcher</span>
+            </div>
+            <div class="space-x-4">
+                <a href="shipments.html" class="hover:text-orange-300">My Shipments</a>
+                <a href="courier.html" class="font-semibold text-orange-300">Courier Queue</a>
+                <a href="complaints.html" class="hover:text-orange-300">CSR Desk</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <h1 class="text-2xl font-bold text-slate-900 mb-2">Assigned Delivery Route Queue</h1>
+        <p class="text-sm text-slate-500 mb-6">Update live delivery statuses and record cash-on-delivery transactions.</p>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-100 text-slate-700 text-xs uppercase tracking-wider">
+                        <th class="p-4">Tracking No.</th>
+                        <th class="p-4">Item & Weight</th>
+                        <th class="p-4">Payment</th>
+                        <th class="p-4">Current Status</th>
+                        <th class="p-4">Quick Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 text-sm">
+                    <tr>
+                        <td class="p-4 font-mono text-blue-600 font-semibold">TRK-2026-9081</td>
+                        <td class="p-4">Mechanical Keyboard (1.2kg)</td>
+                        <td class="p-4">COD (₱2,499)</td>
+                        <td class="p-4"><span id="status-9081" class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-medium">In Transit</span></td>
+                        <td class="p-4 space-x-2">
+                            <button onclick="updateStatus('9081', 'Delivered')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-xs">Mark Delivered</button>
+                            <button onclick="updateStatus('9081', 'Failed')" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1 rounded text-xs">Mark Failed</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        function updateStatus(trackingId, status) {
+            const badge = document.getElementById(`status-${trackingId}`);
+            badge.innerText = status;
+            if(status === 'Delivered') {
+                badge.className = "bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-medium";
+            } else {
+                badge.className = "bg-rose-100 text-rose-800 text-xs px-2 py-1 rounded-full font-medium";
+            }
+            alert(`Parcel TRK-2026-${trackingId} status successfully updated to: ${status}`);
+        }
+    </script>
+</body>
+</html>
