@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Booking • Freight-Flow Express</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/ff.css" />
+  <script src="js/api.js"></script>
+
+  <style>
+    /* Payment method radio cards (page-specific) */
+    .pay-card { display: flex; align-items: center; gap: 10px; border: 1px solid #CBD5E1; border-radius: 12px; padding: 12px; cursor: pointer; transition: all .15s; background: #fff; }
+    .pay-card:hover { border-color: #93C5FD; }
+    .peer:checked + .pay-card { border-color: #2563EB; background: #EFF6FF; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+    .peer:focus-visible + .pay-card { box-shadow: 0 0 0 3px rgba(37,99,235,.35); }
+  </style>
+</head>
+
+<body class="text-slate-900 antialiased">
+
+  <div id="ff-sidebar"></div>
+
+  <div class="lg:pl-64 min-h-screen flex flex-col">
+    <div id="ff-topbar"></div>
+
+    <main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
+
+      <!-- Header -->
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-8">
+        <div>
+          <h1 id="greeting" class="text-3xl font-extrabold tracking-tight">Let's get it moving, Maria.</h1>
+          <p class="text-slate-500 mt-1">Book a parcel, pay once, and follow it all the way to the doorstep.</p>
+        </div>
+        <span class="inline-flex items-center gap-2 bg-white border border-line rounded-full px-4 py-2 text-sm font-medium text-slate-700">
+          <i data-lucide="building-2" class="w-4 h-4 text-royal"></i> <span id="accountBadge">Retail Account • Cagayan de Oro Main</span>
+        </span>
+      </div>
+
+      <!-- Load error -->
+      <div id="loadError" class="hidden mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 flex items-center justify-between gap-4" role="alert">
+        <span>We couldn't load branches and receivers from the server.</span>
+        <button type="button" id="retryLoad" class="btn btn-outline btn-sm">Retry</button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+
+        <!-- ============ LEFT: form (60%) ============ -->
+        <section class="card lg:col-span-3 p-6 sm:p-8" aria-labelledby="formTitle">
+          <div class="flex items-center justify-between gap-3 mb-6">
+            <h2 id="formTitle" class="text-lg font-bold">New Shipment &amp; 1:1 Booking Payment</h2>
+            <span class="text-xs font-semibold text-royal bg-blue-50 border border-blue-100 rounded-full px-3 py-1">1 booking : 1 payment</span>
+          </div>
+
+          <!-- Result banner (shown after a successful booking) -->
+          <div id="result" class="hidden mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4" role="status">
+            <div class="flex items-start gap-3">
+              <i data-lucide="circle-check" class="w-5 h-5 text-emerald-600 mt-0.5 shrink-0"></i>
+              <div class="flex-1 text-sm">
+                <p class="font-semibold text-emerald-900">Booking <span id="resBooking" class="font-mono"></span> confirmed</p>
+                <div class="mt-2 flex flex-wrap gap-2 items-center">
+                  <span class="text-xs text-slate-500">booking_status</span><span class="badge badge-emerald">Confirmed</span>
+                  <span class="text-xs text-slate-500 ml-2">payment_status</span><span class="badge badge-emerald">Paid</span>
+                </div>
+                <p class="mt-2 text-slate-600">Tracking number <span id="resTrk" class="font-mono font-semibold text-slate-900"></span>
+                  • <a href="shipments.html" class="text-royal font-semibold hover:underline">View in My Shipments</a></p>
+              </div>
+            </div>
+          </div>
+
+          <form id="bookingForm" novalidate class="space-y-8">
+
+            <!-- Step 01 -->
+            <fieldset>
+              <legend class="flex items-center gap-3 mb-3">
+                <span class="font-mono text-xs font-semibold text-royal bg-blue-50 rounded-md px-2 py-1">STEP 01</span>
+                <span class="font-semibold">Originating Branch</span>
+              </legend>
+              <label for="branch_id" class="label">Branch <span class="key">branch_id</span></label>
+              <select id="branch_id" name="branch_id" class="field" required>
+                <option value="">Loading branches…</option>
+              </select>
+              <p class="err" data-err="branch_id">Choose where the parcel will be dropped off.</p>
+            </fieldset>
+
+            <!-- Step 02 -->
+            <fieldset>
+              <legend class="flex items-center gap-3 mb-3">
+                <span class="font-mono text-xs font-semibold text-royal bg-blue-50 rounded-md px-2 py-1">STEP 02</span>
+                <span class="font-semibold">Parcel Details</span>
+              </legend>
+              <div class="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="sender_name" class="label">Sender <span class="key">sender_id</span></label>
+                  <input id="sender_name" class="field" value="Loading…" readonly aria-describedby="senderHint" />
+                  <p id="senderHint" class="text-xs text-slate-400 mt-1 font-mono">sender_id = …</p>
+                </div>
+                <div>
+                  <label for="receiver_id" class="label">Receiver <span class="key">receiver_id</span></label>
+                  <select id="receiver_id" name="receiver_id" class="field" required>
+                    <option value="">Loading receivers…</option>
+                  </select>
+                  <p class="err" data-err="receiver_id">Choose who will receive the parcel.</p>
+                </div>
+                <div class="sm:col-span-2">
+                  <label for="item_name" class="label">Item name <span class="key">item_name</span></label>
+                  <input id="item_name" name="item_name" class="field" maxlength="100" placeholder="Electronics - Mechanical Keyboard" value="Electronics - Mechanical Keyboard" required />
+                  <p class="err" data-err="item_name">Describe the item (up to 100 characters).</p>
+                </div>
+                <div>
+                  <label for="weight" class="label">Weight (kg) <span class="key">weight</span></label>
+                  <input id="weight" name="weight" type="number" class="field font-mono" min="0.01" max="999.99" step="0.01" value="2.50" inputmode="decimal" required />
+                  <p class="err" data-err="weight">Weight must be between 0.01 and 999.99 kg.</p>
+                </div>
+                <div class="rounded-xl bg-slate-50 border border-line px-4 py-3 text-sm self-end">
+                  <div class="flex justify-between text-slate-500"><span>Base fee</span><span class="font-mono" id="feeBase">₱100.00</span></div>
+                  <div class="flex justify-between text-slate-500 mt-1"><span>Weight charge (₱20.20/kg)</span><span class="font-mono" id="feeWeight">₱50.50</span></div>
+                </div>
+              </div>
+            </fieldset>
+
+            <!-- Step 03 -->
+            <fieldset>
+              <legend class="flex items-center gap-3 mb-3">
+                <span class="font-mono text-xs font-semibold text-royal bg-blue-50 rounded-md px-2 py-1">STEP 03</span>
+                <span class="font-semibold">1:1 Booking Payment</span>
+              </legend>
+
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" role="radiogroup" aria-label="Payment method">
+                <label class="block"><input type="radio" name="payment_method" value="GCash" class="peer sr-only" checked />
+                  <span class="pay-card"><i data-lucide="smartphone" class="w-5 h-5 text-royal"></i><span class="text-sm font-semibold">GCash</span></span></label>
+                <label class="block"><input type="radio" name="payment_method" value="Card" class="peer sr-only" />
+                  <span class="pay-card"><i data-lucide="credit-card" class="w-5 h-5 text-royal"></i><span class="text-sm font-semibold">Card</span></span></label>
+                <label class="block"><input type="radio" name="payment_method" value="Bank Transfer" class="peer sr-only" />
+                  <span class="pay-card"><i data-lucide="landmark" class="w-5 h-5 text-royal"></i><span class="text-sm font-semibold leading-tight">Bank Transfer</span></span></label>
+                <label class="block"><input type="radio" name="payment_method" value="Cash" class="peer sr-only" />
+                  <span class="pay-card"><i data-lucide="banknote" class="w-5 h-5 text-royal"></i><span class="text-sm font-semibold">Cash</span></span></label>
+              </div>
+
+              <div class="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-slate-50 px-5 py-4">
+                <div>
+                  <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Total amount</div>
+                  <div id="total" class="text-3xl font-extrabold font-mono tracking-tight" aria-live="polite">₱150.50</div>
+                  <div class="text-xs text-slate-500 mt-1">1 booking : 1 payment</div>
+                </div>
+                <button id="submitBtn" type="submit" class="btn btn-primary px-6 py-3" disabled>
+                  <i data-lucide="lock-keyhole" class="w-4 h-4"></i>
+                  <span id="submitLabel">Confirm &amp; Pay</span>
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </section>
+
+        <!-- ============ RIGHT: tracker (40%) ============ -->
+        <div class="lg:col-span-2 space-y-6">
+          <section class="card p-6 sm:p-8" aria-labelledby="trackerTitle">
+            <div class="flex items-center justify-between mb-5">
+              <h2 id="trackerTitle" class="text-lg font-bold">Live Parcel Tracker</h2>
+              <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Live</span>
+            </div>
+
+            <div id="trackerEmpty" class="hidden empty !py-8">
+              <i data-lucide="package-open" class="w-8 h-8 mx-auto text-slate-300 mb-2"></i>
+              No parcels yet. Book your first shipment and it will appear here.
+            </div>
+
+            <div id="trackerBody">
+              <div class="mb-4">
+                <label for="trackSelect" class="sr-only">Choose a parcel to track</label>
+                <select id="trackSelect" class="field text-sm" hidden></select>
+              </div>
+
+              <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">tracking_number</div>
+              <div id="trkNumber" class="font-mono text-2xl font-semibold tracking-tight mt-1"><span class="skeleton inline-block h-7 w-48"></span></div>
+
+              <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2 text-sm text-slate-700 min-w-0">
+                  <i data-lucide="route" class="w-4 h-4 text-slate-400 shrink-0"></i>
+                  <span id="trkRoute" class="truncate">—</span>
+                </div>
+                <span id="trkPill" class="badge badge-slate">—</span>
+              </div>
+
+              <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 font-mono">
+                <span>booking <b id="trkBooking" class="text-slate-700">—</b></span>
+                <span>booking_status <b id="trkBookingStatus" class="text-slate-700">—</b></span>
+                <span>payment_status <b id="trkPaymentStatus" class="text-slate-700">—</b></span>
+              </div>
+
+              <hr class="my-6 border-line" />
+
+              <ol id="stepper" class="list-none" aria-label="Parcel progress"></ol>
+            </div>
+          </section>
+
+          <section class="card p-6 flex items-center gap-4">
+            <div class="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 grid place-items-center shrink-0"><i data-lucide="life-buoy" class="w-5 h-5"></i></div>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold">Something not right?</div>
+              <div class="text-sm text-slate-500">Late, damaged or missing — tell us and we'll step in.</div>
+            </div>
+            <a href="shipments.html" class="btn btn-outline btn-sm shrink-0">Report Issue</a>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const session = FF.mountShell({ page: 'booking.html', roles: ['Customer'] });
+    const $ = FF.$;
+    const form = $('bookingForm');
+    const customerId = session.customer_id;
+
+    // ---------- Pricing: ₱100.00 base + ₱20.20/kg (2.50 kg = ₱150.50) ----------
+    const parseWeight = (v) => {
+      const w = Number(v);
+      return v !== '' && Number.isFinite(w) && w >= 0.01 && w <= 999.99 ? w : null;
+    };
+    function updateFee() {
+      const w = parseWeight($('weight').value);
+      const weightCents = w === null ? 0 : FF.shippingFeeCents(w) - 10000;
+      $('feeBase').textContent = FF.peso(100);
+      $('feeWeight').textContent = FF.peso(weightCents / 100);
+      $('total').textContent = FF.peso((10000 + weightCents) / 100);
+      return w === null ? null : (10000 + weightCents) / 100;
+    }
+    $('weight').addEventListener('input', updateFee);
+
+    // ---------- Load branches, receivers and the signed-in customer ----------
+    let branches = [];
+    async function loadForm() {
+      $('loadError').classList.add('hidden');
+      try {
+        const [me, br, cu] = await Promise.all([
+          FF.currentUser(),
+          FF.apiFetch('/branches', { query: { limit: 100 }, silent: true }),
+          FF.apiFetch('/customers', { query: { limit: 100 }, silent: true }),
+        ]);
+        if (!me.record) throw new Error('customer not found');
+        branches = br.data;
+
+        const c = me.record;
+        $('greeting').textContent = `Let's get it moving, ${(c.first_name || c.name).split(' ')[0]}.`;
+        $('sender_name').value = c.name;
+        $('senderHint').textContent = `sender_id = ${c.customer_id}`;
+
+        $('branch_id').innerHTML = '<option value="">Select a branch…</option>' + branches.map((b) =>
+          `<option value="${b.branch_id}">${b.branch_id} - ${FF.esc(b.branch_name)} (${FF.esc(b.address.split(',')[0])})</option>`).join('');
+        const main = branches.find((b) => b.branch_id === 12) || branches[0];
+        if (main) $('branch_id').value = main.branch_id;
+        updateAccountBadge(c);
+
+        const others = cu.data.filter((x) => x.customer_id !== c.customer_id);
+        $('receiver_id').innerHTML = '<option value="">Select a receiver…</option>' + others.map((x) =>
+          `<option value="${x.customer_id}" data-name="${FF.esc(x.name)}">${FF.esc(x.name)}</option>`).join('');
+        if (others[0]) $('receiver_id').value = others.find((x) => x.name === 'Juan Dela Cruz')?.customer_id ?? others[0].customer_id;
+
+        $('submitBtn').disabled = false;
+        await loadTracker();
+      } catch (err) {
+        $('loadError').classList.remove('hidden');
+        $('trkNumber').textContent = '—';
+      }
+    }
+    $('retryLoad').addEventListener('click', loadForm);
+    function updateAccountBadge(c) {
+      const b = branches.find((x) => String(x.branch_id) === $('branch_id').value);
+      $('accountBadge').textContent = `${c.account_type} Account • ${b ? b.branch_name : 'Select a branch'}`;
+    }
+    $('branch_id').addEventListener('change', async () => updateAccountBadge((await FF.currentUser()).record));
+
+    // ---------- Live parcel tracker ----------
+    async function renderParcel(p, notes) {
+      $('trackerEmpty').classList.add('hidden');
+      $('trackerBody').classList.remove('hidden');
+      $('trkNumber').textContent = p.tracking_number;
+      $('trkRoute').textContent = `${p.branch_name || 'Branch'} → ${p.receiver_name || 'Receiver'}`;
+      $('trkPill').className = 'badge ' + FF.badgeClass(p.current_status);
+      $('trkPill').textContent = p.current_status;
+      $('trkBooking').textContent = '#' + p.booking_id;
+      const bs = $('trkBookingStatus');
+      bs.textContent = p.booking_status || '—';
+      bs.className = p.booking_status === 'Confirmed' ? 'text-emerald-700' : p.booking_status === 'Cancelled' ? 'text-rose-700' : 'text-amber-700';
+      const ps = $('trkPaymentStatus');
+      ps.textContent = p.payment ? p.payment.payment_status : 'Unpaid';
+      ps.className = p.payment?.payment_status === 'Paid' ? 'text-emerald-700' : p.payment?.payment_status === 'Voided' || p.payment?.payment_status === 'Failed' ? 'text-rose-700' : 'text-amber-700';
+      $('stepper').innerHTML = FF.stepper(p.current_status, notes || {
+        0: 'Booking created',
+        ...(['Pending'].includes(p.current_status) ? { 0: p.booking_status === 'Confirmed' ? 'Booking created' : 'Booking created — awaiting payment' } : {}),
+      });
+      FF.icons();
+    }
+
+    // Pick the most relevant parcel: one on the road if any, otherwise the newest
+    async function loadTracker(focusParcelId) {
+      try {
+        const res = await FF.apiFetch('/parcels', { query: { customer_id: customerId, include: 'details', limit: 50 }, silent: true });
+        const parcels = res.data;
+        if (!parcels.length) {
+          $('trackerBody').classList.add('hidden');
+          $('trackerEmpty').classList.remove('hidden');
+          return;
+        }
+        const sel = $('trackSelect');
+        sel.hidden = parcels.length < 2;
+        sel.innerHTML = parcels.map((p) => `<option value="${p.parcel_id}">${FF.esc(p.tracking_number)} — ${FF.esc(p.item_name)} (${FF.esc(p.current_status)})</option>`).join('');
+        const pick = parcels.find((p) => p.parcel_id === focusParcelId)
+          || parcels.find((p) => ['In Transit', 'Out for Delivery'].includes(p.current_status)) || parcels[0];
+        sel.value = pick.parcel_id;
+        sel.onchange = () => renderParcel(parcels.find((p) => String(p.parcel_id) === sel.value));
+        await renderParcel(pick);
+      } catch (err) {
+        $('trkNumber').textContent = 'Tracker unavailable';
+      }
+    }
+
+    // ---------- Validation ----------
+    const FIELDS = ['branch_id', 'receiver_id', 'item_name', 'weight'];
+    function setInvalid(id, bad, message) {
+      const input = $(id);
+      input.classList.toggle('invalid', bad);
+      input.setAttribute('aria-invalid', bad ? 'true' : 'false');
+      const err = document.querySelector(`[data-err="${id}"]`);
+      if (message) err.textContent = message;
+      err.classList.toggle('show', bad);
+    }
+    function validate() {
+      const ok = {
+        branch_id: $('branch_id').value !== '',
+        receiver_id: $('receiver_id').value !== '',
+        item_name: $('item_name').value.trim().length > 0 && $('item_name').value.length <= 100,
+        weight: parseWeight($('weight').value) !== null,
+      };
+      FIELDS.forEach((id) => setInvalid(id, !ok[id]));
+      const firstBad = FIELDS.find((id) => !ok[id]);
+      if (firstBad) $(firstBad).focus();
+      return !firstBad;
+    }
+    FIELDS.forEach((id) => $(id).addEventListener('input', () => setInvalid(id, false)));
+
+    // ---------- Submit: booking (Pending) -> parcel -> 1:1 payment (Paid) -> booking Confirmed, parcel Booked ----------
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('submitBtn');
+      if (btn.disabled || !validate()) return;
+
+      const amount = updateFee();
+      const method = form.payment_method.value;
+      const receiverId = Number($('receiver_id').value);
+      btn.disabled = true;
+      $('submitLabel').textContent = 'Processing payment…';
+      $('result').classList.add('hidden');
+
+      let booking = null;
+      try {
+        // 1) Booking starts Pending until its payment is verified
+        booking = await FF.api.post('/bookings', { customer_id: customerId, branch_id: Number($('branch_id').value) }, { silent: true });
+        // 2) Parcel under that booking (system generates FF-TRK-XXXXXX)
+        const parcel = await FF.api.post('/parcels', {
+          booking_id: booking.booking_id, sender_id: customerId, receiver_id: receiverId,
+          weight: parseWeight($('weight').value), item_name: $('item_name').value.trim(),
+        }, { silent: true });
+
+        // Show the Pending state while the payment goes through
+        await renderParcel({
+          ...parcel, branch_name: $('branch_id').selectedOptions[0].textContent.replace(/^\d+ - /, '').replace(/ \(.*\)$/, ''),
+          receiver_name: $('receiver_id').selectedOptions[0].dataset.name, booking_status: 'Pending', payment: null,
+        });
+
+        // 3) 1:1 payment as Paid -> backend confirms the booking and moves the parcel to Booked
+        const payment = await FF.api.post('/payments', {
+          booking_id: booking.booking_id, payment_method: method, amount, payment_status: 'Paid',
+        }, { silent: true });
+
+        const fresh = await FF.apiFetch('/parcels/' + parcel.parcel_id, { query: { include: 'details' } });
+        await renderParcel(fresh, { 0: 'Booking created', 1: 'Payment verified' });
+        await loadTracker(parcel.parcel_id);
+
+        $('resBooking').textContent = '#' + booking.booking_id;
+        $('resTrk').textContent = parcel.tracking_number;
+        $('result').classList.remove('hidden');
+        $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        FF.toast(`${parcel.tracking_number} • ${FF.peso(amount)} paid via ${method} (payment #${payment.payment_id}).`, 'success', { title: 'Booking confirmed' });
+
+        // Reset per-parcel fields so the same booking isn't submitted twice by accident
+        $('item_name').value = '';
+        $('weight').value = '2.50';
+        updateFee();
+      } catch (err) {
+        // Roll back a half-created booking (cascades to its parcel) so no unpaid orphan is left behind
+        if (booking) { try { await FF.api.del('/bookings/' + booking.booking_id, { silent: true }); } catch (e2) { /* best effort */ } }
+        if (err.status === 422) {
+          const errs = FF.fieldErrors(err);
+          FIELDS.forEach((id) => { if (errs[id]) setInvalid(id, true, errs[id]); });
+        }
+        FF.toast(err.message, err.status === 409 ? 'warning' : 'error', {
+          title: err.status === 409 ? 'Booking blocked (409 Conflict)' : err.status === 422 ? 'Validation error (422)' : 'Booking failed',
+          details: (err.details || []).map((d) => d.issue),
+        });
+        await loadTracker();
+      } finally {
+        btn.disabled = false;
+        $('submitLabel').textContent = 'Confirm & Pay';
+      }
+    });
+
+    updateFee();
+    loadForm();
+  </script>
+</body>
+</html>

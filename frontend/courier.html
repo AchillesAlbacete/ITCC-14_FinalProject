@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Deliveries • Freight-Flow Express</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/ff.css"><script src="js/api.js"></script>
+  <style>
+    /* page-specific: card flash after a status change */
+    .pcard.flash { animation: pflash 1.4s ease-out; }
+    @keyframes pflash { from { background: rgba(37,99,235,.10); box-shadow: 0 0 0 3px rgba(37,99,235,.25); } to { background: #fff; box-shadow: 0 0 0 0 transparent; } }
+    .pcard:focus { outline: none; }
+    .pcard:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .pcard.flash { animation: none !important; } }
+  </style>
+</head>
+<body class="text-slate-900 antialiased">
+<div id="ff-sidebar"></div>
+<div class="lg:pl-64 min-h-screen flex flex-col"><div id="ff-topbar"></div>
+<main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
+
+  <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-extrabold tracking-tight">Today's route<span id="firstName">.</span></h1>
+      <p class="text-slate-500 mt-1">Move each parcel one stage at a time, from pickup to the receiver's door.</p>
+      <p id="who" class="text-sm text-slate-500 mt-2 flex items-center gap-2"><i data-lucide="id-card" class="w-4 h-4 text-slate-400"></i><span id="whoText">Signed in as …</span></p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="lastUpdated" class="text-xs text-slate-500" aria-live="polite"></span>
+      <button id="refreshBtn" type="button" class="btn btn-outline btn-sm"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh</button>
+    </div>
+  </div>
+
+  <!-- Stat tiles -->
+  <section id="tiles" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6" aria-label="Delivery summary"></section>
+
+  <!-- Tabs -->
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div id="tabs" class="tabs" role="tablist" aria-label="Delivery lists">
+      <button type="button" role="tab" data-tab="active" aria-selected="true">Active <span id="cntActive" class="ml-1 text-xs text-slate-400">0</span></button>
+      <button type="button" role="tab" data-tab="completed" aria-selected="false">Completed <span id="cntDone" class="ml-1 text-xs text-slate-400">0</span></button>
+    </div>
+    <p class="text-xs text-slate-500 font-mono">GET /parcels?staff_id=…</p>
+  </div>
+
+  <section id="list" class="space-y-4" aria-live="polite" aria-busy="true"></section>
+</main></div>
+
+<script>
+  const session = FF.mountShell({ page: 'courier.html', roles: ['Courier'] });
+  const $ = FF.$;
+  const esc = FF.esc;
+
+  const state = { parcels: [], tab: 'active', loaded: false, error: null, busy: new Set(), linger: new Set(), open: new Set(), updatedAt: null, stale: false };
+
+  // Next-action map (mirrors backend/lib/lifecycle.js PARCEL_NEXT)
+  const ACTIONS = {
+    'Booked':           { to: 'In Transit',       label: 'Pick up & start transit', icon: 'truck',          cls: 'btn-primary' },
+    'In Transit':       { to: 'Out for Delivery', label: 'Out for delivery',        icon: 'navigation',     cls: 'btn-primary' },
+    'Out for Delivery': { to: 'Delivered',        label: 'Mark Delivered',          icon: 'package-check',  cls: 'btn-success' },
+    'Failed':           { to: 'In Transit',       label: 'Retry delivery',          icon: 'rotate-ccw',     cls: 'btn-primary' },
+  };
+  const PRIORITY = { 'Out for Delivery': 0, 'In Transit': 1, 'Booked': 2, 'Failed': 3, 'Pending': 4 };
+  const SHORT = ['Pending', 'Booked', 'In Transit', 'Out for delivery', 'Delivered'];
+
+  const isDone = (p) => p.current_status === 'Delivered';
+  const visible = () => state.parcels.filter((p) => state.tab === 'completed' ? isDone(p) && !state.linger.has(p.parcel_id) : !isDone(p) || state.linger.has(p.parcel_id));
+
+  // ---------------------------------------------------------------- rendering
+  function renderTiles() {
+    const c = (s) => state.parcels.filter((p) => p.current_status === s).length;
+    const tiles = [
+      ['Assigned (active)', state.parcels.filter((p) => !isDone(p)).length, 'text-slate-900', 'package'],
+      ['In Transit', c('In Transit'), 'text-amber-700', 'truck'],
+      ['Out for Delivery', c('Out for Delivery'), 'text-amber-700', 'navigation'],
+      ['Delivered', c('Delivered'), 'text-emerald-700', 'package-check'],
+      ['Failed', c('Failed'), 'text-rose-700', 'package-x'],
+    ];
+    $('tiles').innerHTML = tiles.map(([label, n, tone, icon], i) => `
+      <div class="card p-5 ${i === 0 ? 'col-span-2 sm:col-span-1' : ''}">
+        <div class="flex items-center justify-between"><div class="text-xs font-medium text-slate-500 uppercase tracking-wide">${label}</div><i data-lucide="${icon}" class="w-4 h-4 text-slate-300"></i></div>
+        <div class="mt-1 text-3xl font-extrabold font-mono ${tone}" data-tile="${esc(label)}">${state.loaded ? n : '–'}</div>
+      </div>`).join('');
+  }
+
+  function progressBar(status) {
+    const failed = status === 'Failed';
+    const idx = failed ? 3 : FF.STEPS.indexOf(status);
+    const dot = (i) => {
+      if (i < idx) return 'bg-emerald-500 border-emerald-500 text-white';
+      if (i === idx) return failed ? 'bg-rose-500 border-rose-500 text-white' : (i === 4 ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-amber-100 border-amber-500 text-amber-700');
+      return 'bg-white border-slate-200 text-slate-300';
+    };
+    const line = (on) => on ? 'bg-emerald-500' : 'bg-slate-200';
+    const label = (i) => (failed && i === idx ? 'Failed' : SHORT[i]);
+    const cols = SHORT.map((_, i) => `
+      <li class="flex-1 min-w-0 text-center">
+        <div class="flex items-center">
+          <span class="h-0.5 flex-1 ${i === 0 ? 'opacity-0' : line(i <= idx)}"></span>
+          <span class="w-5 h-5 rounded-full border-2 grid place-items-center shrink-0 ${dot(i)}">${i < idx || (i === idx && (i === 4 || failed)) ? `<i data-lucide="${failed && i === idx ? 'x' : 'check'}" class="w-3 h-3"></i>` : ''}</span>
+          <span class="h-0.5 flex-1 ${i === 4 ? 'opacity-0' : line(i < idx)}"></span>
+        </div>
+        <div class="mt-1 text-[10px] sm:text-[11px] leading-tight ${i === idx ? (failed ? 'text-rose-700 font-semibold' : 'text-slate-900 font-semibold') : i < idx ? 'text-slate-600' : 'text-slate-400'}">${label(i)}</div>
+      </li>`).join('');
+    return `<ol class="flex" role="img" aria-label="Progress: ${esc(failed ? 'Delivery failed' : status)}, step ${Math.min(idx + 1, 5)} of 5">${cols}</ol>`;
+  }
+
+  function actionsHtml(p) {
+    const st = p.current_status, busy = state.busy.has(p.parcel_id), id = p.parcel_id;
+    if (st === 'Delivered') return `<div class="text-sm text-emerald-700 font-medium flex items-center gap-2"><i data-lucide="circle-check" class="w-4 h-4"></i> Delivered — nothing left to do.</div>`;
+    if (st === 'Pending') {
+      return `<div class="flex flex-wrap items-center gap-3">
+        <button type="button" class="btn btn-primary" disabled aria-describedby="hint-${id}"><i data-lucide="lock" class="w-4 h-4"></i> Awaiting payment verification</button>
+        <span id="hint-${id}" class="text-sm text-slate-500">Booking #${esc(p.booking_id)} isn't paid yet — the parcel unlocks once its payment is verified.</span></div>`;
+    }
+    const a = ACTIONS[st];
+    const spinner = '<i data-lucide="loader-circle" class="w-4 h-4 animate-spin"></i>';
+    let html = `<button type="button" class="btn ${a.cls}" data-act="${id}" data-to="${esc(a.to)}" ${busy ? 'disabled' : ''}>${busy ? spinner : `<i data-lucide="${a.icon}" class="w-4 h-4"></i>`} ${a.label}</button>`;
+    if (st === 'Out for Delivery') {
+      html += `<button type="button" class="btn btn-danger-outline" data-fail="${id}" ${busy ? 'disabled' : ''}><i data-lucide="package-x" class="w-4 h-4"></i> Mark Failed</button>`;
+    }
+    if (st === 'Failed') html += `<span class="text-sm text-slate-500">The last attempt failed. Retrying sends the parcel back In Transit.</span>`;
+    return `<div class="flex flex-wrap items-center gap-3">${html}</div>`;
+  }
+
+  function cardHtml(p) {
+    const st = p.current_status, id = p.parcel_id;
+    const pay = p.payment;
+    const tone = st === 'Failed' ? '!border-l-4 !border-l-rose-400' : st === 'Delivered' ? '!border-l-4 !border-l-emerald-400' : st === 'Out for Delivery' ? '!border-l-4 !border-l-amber-400' : '';
+    const payHtml = pay
+      ? `${FF.badge(pay.payment_status)} <span class="text-slate-600">${esc(pay.payment_method)} • <span class="mono">${FF.peso(pay.amount)}</span></span>`
+      : `<span class="text-slate-500">No payment on record</span>`;
+    return `
+    <article class="pcard card p-5 sm:p-6 ${tone}" data-card="${id}" tabindex="-1" aria-label="Parcel ${esc(p.tracking_number)}">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-[11px] uppercase tracking-wide text-slate-500 font-medium">Tracking no.</div>
+          <div class="mono text-xl sm:text-2xl font-semibold tracking-tight break-all">${esc(p.tracking_number)}</div>
+          <div class="text-sm text-slate-600 mt-1">${esc(p.item_name)} <span class="text-slate-300 mx-1">•</span> <span class="mono">${esc(p.weight)}</span> kg</div>
+        </div>
+        ${FF.badge(st)}
+      </div>
+
+      <dl class="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div class="flex items-start gap-2"><i data-lucide="package-open" class="w-4 h-4 mt-0.5 text-slate-400 shrink-0"></i><div><dt class="text-xs text-slate-500">Pick up from</dt><dd class="font-medium">${esc(p.sender_name)}</dd></div></div>
+        <div class="flex items-start gap-2"><i data-lucide="map-pin" class="w-4 h-4 mt-0.5 text-slate-400 shrink-0"></i><div><dt class="text-xs text-slate-500">Deliver to</dt><dd class="font-medium">${esc(p.receiver_name)}</dd></div></div>
+        <div class="flex items-start gap-2"><i data-lucide="building-2" class="w-4 h-4 mt-0.5 text-slate-400 shrink-0"></i><div><dt class="text-xs text-slate-500">Origin branch</dt><dd class="font-medium">${esc(p.branch_name || '—')}</dd></div></div>
+        <div class="flex items-start gap-2"><i data-lucide="wallet" class="w-4 h-4 mt-0.5 text-slate-400 shrink-0"></i><div><dt class="text-xs text-slate-500">Payment</dt><dd class="flex flex-wrap items-center gap-2">${payHtml}</dd></div></div>
+      </dl>
+
+      <div class="mt-5">${progressBar(st)}</div>
+      <details class="mt-3" data-open-id="${id}" ${state.open.has(id) ? 'open' : ''}>
+        <summary class="cursor-pointer text-sm font-medium text-royal hover:underline select-none w-fit">Progress details</summary>
+        <ul class="mt-4 ml-1">${FF.stepper(st)}</ul>
+      </details>
+
+      <div class="mt-5 pt-4 border-t border-line">${actionsHtml(p)}</div>
+    </article>`;
+  }
+
+  function renderList() {
+    const el = $('list');
+    el.setAttribute('aria-busy', String(!state.loaded && !state.error));
+    if (state.error && !state.loaded) {
+      el.innerHTML = `<div class="card empty"><i data-lucide="cloud-off" class="w-8 h-8 mx-auto text-slate-300"></i>
+        <p class="mt-3 font-semibold text-slate-700">We couldn't load your deliveries.</p><p class="mt-1">${esc(state.error.message)}</p>
+        <button type="button" class="btn btn-primary btn-sm mt-4" data-retry><i data-lucide="refresh-cw" class="w-4 h-4"></i> Try again</button></div>`;
+      return;
+    }
+    if (!state.loaded) {
+      el.innerHTML = [1, 2, 3].map(() => `<div class="card p-6"><div class="skeleton h-6 w-48"></div><div class="skeleton h-4 w-72 mt-3"></div><div class="skeleton h-4 w-full mt-6"></div><div class="skeleton h-10 w-56 mt-6"></div></div>`).join('');
+      return;
+    }
+    let rows = visible();
+    if (state.tab === 'active') rows = rows.slice().sort((a, b) => (PRIORITY[a.current_status] ?? 9) - (PRIORITY[b.current_status] ?? 9) || a.parcel_id - b.parcel_id);
+    else rows = rows.slice().sort((a, b) => b.parcel_id - a.parcel_id);
+    if (!rows.length) {
+      el.innerHTML = state.tab === 'active'
+        ? `<div class="card empty"><i data-lucide="party-popper" class="w-8 h-8 mx-auto text-slate-300"></i><p class="mt-3 font-semibold text-slate-700">No active deliveries.</p><p class="mt-1">You're all caught up. New assignments show up here automatically.</p></div>`
+        : `<div class="card empty"><i data-lucide="package-check" class="w-8 h-8 mx-auto text-slate-300"></i><p class="mt-3 font-semibold text-slate-700">Nothing delivered yet.</p><p class="mt-1">Completed deliveries will be listed here.</p></div>`;
+      return;
+    }
+    el.innerHTML = rows.map(cardHtml).join('');
+  }
+
+  function renderMeta() {
+    const active = state.parcels.filter((p) => !isDone(p)).length;
+    $('cntActive').textContent = active;
+    $('cntDone').textContent = state.parcels.length - active;
+    document.querySelectorAll('#tabs [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
+    if (state.stale) $('lastUpdated').innerHTML = `<span class="text-amber-700">Couldn't refresh — showing last known data</span>`;
+    else if (state.updatedAt) $('lastUpdated').textContent = 'Updated ' + state.updatedAt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function render({ flashId, focusId } = {}) {
+    renderTiles(); renderMeta(); renderList(); FF.icons();
+    if (flashId) { const el = document.querySelector(`[data-card="${flashId}"]`); if (el) { el.classList.add('flash'); } }
+    if (focusId) { const el = document.querySelector(`[data-card="${focusId}"]`); if (el) (el.querySelector('[data-act]:not(:disabled), [data-fail]:not(:disabled)') || el).focus({ preventScroll: true }); }
+  }
+
+  // ---------------------------------------------------------------- data
+  async function load({ background = false } = {}) {
+    if (background && (state.busy.size || document.querySelector('.ff-overlay'))) return; // don't yank the UI mid-action
+    $('refreshBtn').disabled = true;
+    $('refreshBtn').querySelector('svg, i')?.classList.add('animate-spin');
+    try {
+      const r = await FF.apiFetch('/parcels', { query: { staff_id: session.staff_id, include: 'details', limit: 100 }, silent: true });
+      const changed = JSON.stringify(r.data) !== JSON.stringify(state.parcels) || !state.loaded;
+      state.parcels = r.data; state.loaded = true; state.error = null; state.stale = false; state.updatedAt = new Date();
+      if (changed) render(); else renderMeta();
+    } catch (e) {
+      if (!state.loaded) { state.error = e; render(); }
+      else { state.stale = true; renderMeta(); if (!background) FF.toast(e.message, 'error', { title: 'Refresh failed' }); }
+    } finally {
+      $('refreshBtn').disabled = false;
+      $('refreshBtn').querySelector('svg, i')?.classList.remove('animate-spin');
+    }
+  }
+
+  async function advance(id, to) {
+    const p = state.parcels.find((x) => x.parcel_id === id);
+    if (!p || state.busy.has(id)) return;
+    state.busy.add(id); render({ focusId: id });
+    let ok = false;
+    try {
+      const res = await FF.apiFetch('/parcels/' + id, { method: 'PATCH', body: { current_status: to } });
+      p.current_status = (res && res.current_status) || to;
+      ok = true;
+      FF.toast(`${p.tracking_number} is now ${p.current_status}`, 'success');
+      if (p.current_status === 'Delivered') { // keep it visible for a moment, then it moves to Completed
+        state.linger.add(id);
+        setTimeout(() => { state.linger.delete(id); render(); }, 3000);
+      }
+    } catch (e) {
+      // 409/404 were already toasted by FF.apiFetch; resync the list so the UI matches the server
+      state.busy.delete(id);
+      await load({ background: false });
+      return;
+    }
+    state.busy.delete(id);
+    state.updatedAt = new Date(); state.stale = false;
+    render({ flashId: ok ? id : null, focusId: id });
+  }
+
+  async function markFailed(id) {
+    const p = state.parcels.find((x) => x.parcel_id === id);
+    if (!p) return;
+    const yes = await FF.confirm({
+      title: `Mark ${p.tracking_number} as failed?`,
+      message: `The delivery attempt to ${p.receiver_name} will be recorded as Failed. You can retry the delivery afterwards.`,
+      confirmLabel: 'Mark Failed', danger: true, icon: 'package-x',
+    });
+    if (yes) advance(id, 'Failed');
+  }
+
+  // ---------------------------------------------------------------- events
+  $('list').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-act]'); if (a) return advance(Number(a.dataset.act), a.dataset.to);
+    const f = e.target.closest('[data-fail]'); if (f) return markFailed(Number(f.dataset.fail));
+    if (e.target.closest('[data-retry]')) return load();
+  });
+  $('list').addEventListener('toggle', (e) => {
+    const d = e.target; if (!d.matches || !d.matches('details[data-open-id]')) return;
+    const id = Number(d.dataset.openId);
+    if (d.open) state.open.add(id); else state.open.delete(id);
+  }, true);
+  $('tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tab]'); if (!b) return;
+    state.tab = b.dataset.tab; render();
+  });
+  $('refreshBtn').addEventListener('click', () => load());
+
+  // Auto refresh every 60s, paused while the tab is hidden; catch up when it becomes visible again
+  setInterval(() => { if (!document.hidden) load({ background: true }); }, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && (!state.updatedAt || Date.now() - state.updatedAt.getTime() > 60000)) load({ background: true });
+  });
+
+  // ---------------------------------------------------------------- boot
+  render();
+  FF.currentUser().then((u) => {
+    const first = String(u.name || '').split(' ')[0];
+    $('firstName').textContent = first && u.kind === 'staff' && u.record ? ', ' + first + '.' : '.';
+    const branch = (u.subtitle || '').split(' • ').slice(1).join(' • ');
+    $('whoText').textContent = 'Signed in as ' + u.name + (branch ? ' • ' + branch : '');
+  });
+  load();
+</script>
+</body>
+</html>

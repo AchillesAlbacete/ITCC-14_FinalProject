@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard • Freight-Flow Express</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="css/ff.css"><script src="js/api.js"></script>
+<style>
+  .bar-track { background: #F1F5F9; border-radius: 999px; height: 10px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; transition: width .5s ease; }
+  .chip-btn { padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #475569; border: 1px solid #CBD5E1; background: #fff; }
+  .chip-btn:hover { border-color: #2563EB; color: #2563EB; }
+  .chip-btn[aria-pressed="true"] { background: #EFF6FF; border-color: #BFDBFE; color: #1D4ED8; }
+  .chip-btn:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
+  .courier-card { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid #E2E8F0; border-radius: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .courier-card:hover { border-color: #93C5FD; }
+  .courier-card:has(input:checked) { border-color: #2563EB; background: #EFF6FF; }
+  .courier-card:has(input:focus-visible) { box-shadow: 0 0 0 3px rgba(37,99,235,.25); }
+  .courier-card:has(input:disabled) { opacity: .6; cursor: not-allowed; }
+  @media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } }
+</style>
+</head>
+<body class="text-slate-900 antialiased">
+<div id="ff-sidebar"></div>
+<div class="lg:pl-64 min-h-screen flex flex-col"><div id="ff-topbar"></div>
+<main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
+
+  <!-- Header -->
+  <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 id="greeting" class="text-3xl font-extrabold tracking-tight">Welcome back.</h1>
+      <p class="text-slate-500 mt-1">A clear view of every delivery. Monitor shipments and keep your team moving.</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <label for="branchSel" class="text-sm font-medium text-slate-600">Branch</label>
+      <select id="branchSel" class="field w-auto min-w-[200px]"><option value="">All branches</option></select>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <section aria-label="Key figures" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="kpis"></section>
+
+  <!-- Pipeline + branches -->
+  <div class="grid lg:grid-cols-2 gap-6 mb-6">
+    <section class="card p-5 sm:p-6" aria-labelledby="pipeTitle">
+      <div class="flex items-center justify-between mb-4">
+        <h2 id="pipeTitle" class="text-lg font-bold">Parcel pipeline</h2>
+        <span id="pipeTotal" class="text-xs text-slate-500"></span>
+      </div>
+      <div id="pipeline"></div>
+    </section>
+    <section class="card p-5 sm:p-6" aria-labelledby="brTitle">
+      <div class="flex items-center justify-between mb-4">
+        <h2 id="brTitle" class="text-lg font-bold">Bookings by branch</h2>
+        <a href="admin-network.html" class="text-sm font-semibold text-royal hover:underline">Manage network</a>
+      </div>
+      <div id="byBranch"></div>
+    </section>
+  </div>
+
+  <!-- Courier dispatch -->
+  <section class="card overflow-hidden mb-6" aria-labelledby="dispTitle">
+    <div class="p-5 sm:p-6 border-b border-line">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 id="dispTitle" class="text-lg font-bold">Dispatch queue</h2>
+          <p id="dispSub" class="text-sm text-slate-500 mt-0.5">Parcels that need a courier or attention.</p>
+        </div>
+        <div class="relative">
+          <label for="dispSearch" class="sr-only">Search dispatch queue by tracking number, item or receiver</label>
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <input id="dispSearch" type="search" class="field pl-9 w-64" placeholder="Search tracking, item, receiver" autocomplete="off">
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 mt-4" id="dispChips" role="group" aria-label="Filter dispatch queue">
+        <button type="button" class="chip-btn" data-f="all" aria-pressed="true">All</button>
+        <button type="button" class="chip-btn" data-f="unassigned" aria-pressed="false">Unassigned</button>
+        <button type="button" class="chip-btn" data-f="Pending" aria-pressed="false">Pending</button>
+        <button type="button" class="chip-btn" data-f="Booked" aria-pressed="false">Booked</button>
+        <button type="button" class="chip-btn" data-f="In Transit" aria-pressed="false">In Transit</button>
+        <button type="button" class="chip-btn" data-f="Out for Delivery" aria-pressed="false">Out for Delivery</button>
+        <button type="button" class="chip-btn" data-f="Failed" aria-pressed="false">Failed</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="ledger w-full min-w-[860px]">
+        <thead><tr>
+          <th scope="col">Tracking no.</th><th scope="col">Item</th><th scope="col">Route / branch</th>
+          <th scope="col">Status</th><th scope="col">Courier</th><th scope="col" class="!text-right">Action</th>
+        </tr></thead>
+        <tbody id="dispBody"></tbody>
+      </table>
+    </div>
+    <div class="px-6 py-3 text-xs text-slate-500 border-t border-line flex justify-between gap-4">
+      <span id="dispCount" aria-live="polite"></span><span class="font-mono hidden sm:inline">GET /parcels</span>
+    </div>
+  </section>
+
+  <!-- Recent bookings -->
+  <section class="card overflow-hidden" aria-labelledby="recTitle">
+    <div class="p-5 sm:p-6 flex items-center justify-between gap-4 border-b border-line">
+      <h2 id="recTitle" class="text-lg font-bold">Recent bookings</h2>
+      <a href="payments.html" class="text-sm font-semibold text-royal hover:underline inline-flex items-center gap-1">View payments <i data-lucide="arrow-right" class="w-4 h-4"></i></a>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="ledger w-full min-w-[760px]">
+        <thead><tr>
+          <th scope="col">Booking</th><th scope="col">Customer</th><th scope="col">Branch</th>
+          <th scope="col">Status</th><th scope="col">Payment</th><th scope="col">Date</th>
+        </tr></thead>
+        <tbody id="recBody"></tbody>
+      </table>
+    </div>
+  </section>
+</main></div>
+
+<script>
+const session = FF.mountShell({ page: 'dashboard.html', roles: ['Manager'] });
+const $ = FF.$, esc = FF.esc;
+
+const state = {
+  branchId: '',
+  branches: [],
+  dash: null,
+  parcels: [],        // all parcels (details), scoped by branch client-side
+  parcelsTotal: 0,
+  couriers: [],
+  filter: 'all',
+  q: '',
+  flashId: null,
+};
+const ACTIVE = ['Pending', 'Booked', 'In Transit', 'Out for Delivery'];
+const QUEUE = [...ACTIVE, 'Failed'];   // Failed parcels need attention (retry) too
+const NEXT = { Pending: 'Booked', Booked: 'In Transit', 'In Transit': 'Out for Delivery', 'Out for Delivery': 'Delivered', Failed: 'In Transit' };
+const NEXT_LABEL = { Booked: 'Mark as Booked', 'In Transit': 'Dispatch — mark In Transit', 'Out for Delivery': 'Mark Out for Delivery', Delivered: 'Mark Delivered' };
+const BAR_COLOR = { Pending: '#FCD34D', Booked: '#FBBF24', 'In Transit': '#F59E0B', 'Out for Delivery': '#D97706', Delivered: '#10B981', Failed: '#EF4444' };
+const PIPE = ['Pending', 'Booked', 'In Transit', 'Out for Delivery', 'Delivered', 'Failed'];
+
+const errorBox = (msg, retryFn) => `<div class="empty"><i data-lucide="triangle-alert" class="w-6 h-6 mx-auto mb-2 text-amber-500"></i>
+  <div>${esc(msg)}</div><button type="button" class="btn btn-outline btn-sm mt-3" data-retry="${retryFn}"><i data-lucide="rotate-cw" class="w-4 h-4"></i> Retry</button></div>`;
+const skel = (n, h = 'h-6') => Array.from({ length: n }, () => `<div class="skeleton ${h} mb-3"></div>`).join('');
+
+// ---------------------------------------------------------------- greeting
+function greet() {
+  const h = new Date().getHours();
+  const part = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  FF.currentUser().then((u) => {
+    const first = String(u.name || '').split(/\s+/)[0] || 'Manager';
+    $('greeting').textContent = `${part}, ${first}.`;
+  });
+}
+
+// ---------------------------------------------------------------- KPI + charts
+function kpiCard({ label, value, hint, icon, tone, href }) {
+  const body = `<div class="flex items-start justify-between">
+      <div class="text-xs font-medium text-slate-500 uppercase tracking-wide">${esc(label)}</div>
+      <span class="w-8 h-8 rounded-lg grid place-items-center ${tone}"><i data-lucide="${icon}" class="w-4 h-4"></i></span>
+    </div>
+    <div class="mt-2 text-2xl sm:text-3xl font-extrabold font-mono tracking-tight">${esc(value)}</div>
+    <div class="mt-1 text-xs text-slate-500">${hint}</div>`;
+  return href
+    ? `<a href="${href}" class="card p-5 block hover:border-royal transition-colors">${body}</a>`
+    : `<div class="card p-5">${body}</div>`;
+}
+
+function renderKpis() {
+  const d = state.dash;
+  $('kpis').innerHTML = [
+    kpiCard({ label: 'Parcels in motion', value: d.parcels['In Transit'] + d.parcels['Out for Delivery'], icon: 'truck', tone: 'bg-amber-50 text-amber-600',
+      hint: `${d.parcels['In Transit']} in transit • ${d.parcels['Out for Delivery']} out for delivery` }),
+    kpiCard({ label: 'Collected revenue', value: FF.peso(d.payments.collected), icon: 'wallet', tone: 'bg-emerald-50 text-emerald-600',
+      hint: `${FF.peso(d.payments.pending_amount)} still pending`, href: 'payments.html' }),
+    kpiCard({ label: 'Bookings awaiting payment', value: d.bookings.Pending, icon: 'clock', tone: 'bg-amber-50 text-amber-600',
+      hint: `${d.bookings.Confirmed} confirmed • ${d.bookings.Cancelled} cancelled`, href: 'payments.html' }),
+    kpiCard({ label: 'Open complaints', value: d.complaints.Pending + d.complaints.Investigating, icon: 'message-square-warning', tone: 'bg-blue-50 text-royal',
+      hint: `${d.complaints.Pending} pending • ${d.complaints.Investigating} investigating`, href: 'complaints.html' }),
+  ].join('');
+  FF.icons();
+}
+
+function renderPipeline() {
+  const p = state.dash.parcels;
+  const max = Math.max(1, ...PIPE.map((s) => p[s] || 0));
+  const total = PIPE.reduce((t, s) => t + (p[s] || 0), 0);
+  $('pipeTotal').textContent = `${total} parcel${total === 1 ? '' : 's'}`;
+  $('pipeline').innerHTML = `<ul class="space-y-3">${PIPE.map((s) => `
+    <li class="grid grid-cols-[120px_1fr_36px] sm:grid-cols-[140px_1fr_40px] items-center gap-3">
+      <span class="text-sm text-slate-700">${esc(s)}</span>
+      <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:${((p[s] || 0) / max) * 100}%;background:${BAR_COLOR[s]}"></div></div>
+      <span class="text-sm font-semibold font-mono text-right">${p[s] || 0}</span>
+    </li>`).join('')}</ul>`;
+}
+
+function renderByBranch() {
+  const counts = Object.fromEntries((state.dash.bookings_by_branch || []).map((b) => [b.branch_id, b.bookings]));
+  const rows = state.branches.map((b) => ({ id: b.branch_id, name: b.branch_name, n: counts[b.branch_id] || 0 }));
+  // branches returned by the dashboard that are missing from /branches (shouldn't happen) still show up
+  (state.dash.bookings_by_branch || []).forEach((b) => { if (!rows.some((r) => r.id === b.branch_id)) rows.push({ id: b.branch_id, name: b.branch_name || `Branch #${b.branch_id}`, n: b.bookings }); });
+  rows.sort((a, b) => b.n - a.n);
+  if (!rows.length) { $('byBranch').innerHTML = '<div class="empty">No branches yet.</div>'; return; }
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  $('byBranch').innerHTML = `<ul class="space-y-3">${rows.map((r) => {
+    const sel = String(r.id) === String(state.branchId);
+    return `<li class="grid grid-cols-[120px_1fr_36px] sm:grid-cols-[140px_1fr_40px] items-center gap-3">
+      <span class="text-sm truncate ${sel ? 'font-bold text-royal' : 'text-slate-700'}" title="${esc(r.name)}">${esc(r.name)}</span>
+      <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:${(r.n / max) * 100}%;background:${sel || !state.branchId ? '#2563EB' : '#93C5FD'}"></div></div>
+      <span class="text-sm font-semibold font-mono text-right">${r.n}</span></li>`;
+  }).join('')}</ul>`;
+}
+
+async function loadSummary() {
+  $('kpis').innerHTML = Array.from({ length: 4 }, () => '<div class="card p-5"><div class="skeleton h-3 w-24 mb-3"></div><div class="skeleton h-8 w-28"></div></div>').join('');
+  $('pipeline').innerHTML = skel(6); $('byBranch').innerHTML = skel(4);
+  try {
+    state.dash = await FF.apiFetch('/dashboard', { query: { branch_id: state.branchId }, silent: true });
+  } catch (e) {
+    $('kpis').innerHTML = `<div class="card col-span-full">${errorBox(e.message, 'summary')}</div>`;
+    $('pipeline').innerHTML = errorBox(e.message, 'summary'); $('byBranch').innerHTML = '';
+    FF.icons(); return;
+  }
+  renderKpis(); renderPipeline(); renderByBranch(); FF.icons();
+}
+
+// ---------------------------------------------------------------- recent bookings
+async function loadRecent() {
+  $('recBody').innerHTML = `<tr><td colspan="6">${skel(4, 'h-5')}</td></tr>`;
+  try {
+    const res = await FF.apiFetch('/bookings', { query: { include: 'details', limit: 8, branch_id: state.branchId }, silent: true });
+    if (!res.data.length) { $('recBody').innerHTML = '<tr><td colspan="6" class="empty">No bookings yet.</td></tr>'; return; }
+    $('recBody').innerHTML = res.data.map((b) => `<tr>
+      <td class="font-mono font-medium">#${b.booking_id}</td>
+      <td>${esc(b.customer_name)}</td>
+      <td class="text-slate-600">${esc(b.branch_name)}</td>
+      <td>${FF.badge(b.booking_status)}</td>
+      <td>${b.payment ? `<a href="payments.html" class="inline-flex items-center gap-2 hover:underline" title="Open payments">${FF.badge(b.payment.payment_status)}<span class="font-mono text-xs text-slate-500">${FF.peso(b.payment.amount)}</span></a>` : '<span class="text-slate-400">No payment</span>'}</td>
+      <td class="text-slate-600 whitespace-nowrap">${FF.date(b.booking_date)}</td></tr>`).join('');
+  } catch (e) {
+    $('recBody').innerHTML = `<tr><td colspan="6">${errorBox(e.message, 'recent')}</td></tr>`;
+  }
+  FF.icons();
+}
+
+// ---------------------------------------------------------------- dispatch queue
+const inScope = (p) => !state.branchId || String(p.branch_id) === String(state.branchId);
+
+function queueRows() {
+  const q = state.q.trim().toLowerCase();
+  const rank = Object.fromEntries(QUEUE.map((s, i) => [s, i]));
+  return state.parcels
+    .filter((p) => inScope(p) && QUEUE.includes(p.current_status))
+    .filter((p) => state.filter === 'all' || (state.filter === 'unassigned' ? !p.courier : p.current_status === state.filter))
+    .filter((p) => !q || [p.tracking_number, p.item_name, p.receiver_name, p.sender_name].some((v) => String(v || '').toLowerCase().includes(q)))
+    // unassigned first, then furthest-along parcels first, then newest
+    .sort((a, b) => (!!a.courier - !!b.courier) || (rank[b.current_status] - rank[a.current_status]) || (b.parcel_id - a.parcel_id));
+}
+
+function renderQueue() {
+  const all = state.parcels.filter((p) => inScope(p) && QUEUE.includes(p.current_status));
+  const rows = queueRows();
+  const unassigned = all.filter((p) => !p.courier).length;
+  $('dispSub').textContent = unassigned ? `${unassigned} parcel${unassigned === 1 ? '' : 's'} still need a courier.` : 'Every active parcel has a courier.';
+  if (!rows.length) {
+    $('dispBody').innerHTML = `<tr><td colspan="6" class="empty">${all.length ? 'No parcels match your filter.' : 'Nothing to dispatch. Active parcels will appear here.'}</td></tr>`;
+  } else {
+    $('dispBody').innerHTML = rows.map((p) => `<tr data-parcel="${p.parcel_id}" class="${p.parcel_id === state.flashId ? 'flash' : ''}">
+      <td><div class="font-mono font-medium">${esc(p.tracking_number)}</div><div class="text-xs text-slate-500">Booking #${p.booking_id}</div></td>
+      <td><div class="max-w-[240px] truncate" title="${esc(p.item_name)}">${esc(p.item_name)}</div><div class="text-xs text-slate-500">${esc(p.weight)} kg</div></td>
+      <td><div class="text-sm">${esc(p.sender_name)} <span class="text-slate-400">→</span> ${esc(p.receiver_name)}</div><div class="text-xs text-slate-500">${esc(p.branch_name)}</div></td>
+      <td>${FF.badge(p.current_status)}</td>
+      <td>${p.courier ? `<span class="inline-flex items-center gap-2"><span class="w-6 h-6 rounded-full bg-slate-100 text-slate-600 grid place-items-center text-[10px] font-bold">${esc(p.courier.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join(''))}</span>${esc(p.courier.name)}</span>`
+        : '<span class="badge badge-amber">Unassigned</span>'}</td>
+      <td class="text-right"><button type="button" class="btn btn-sm ${p.courier || p.current_status === 'Failed' ? 'btn-outline' : 'btn-primary'}" data-open="${p.parcel_id}"
+        aria-label="${p.current_status === 'Failed' ? 'Review' : p.courier ? 'Reassign courier for' : 'Assign courier to'} ${esc(p.tracking_number)}">${p.current_status === 'Failed' ? 'Review' : p.courier ? 'Reassign' : 'Assign courier'}</button></td></tr>`).join('');
+  }
+  state.flashId = null;
+  const extra = state.parcelsTotal > state.parcels.length ? ` (first ${state.parcels.length} of ${state.parcelsTotal} parcels loaded)` : '';
+  $('dispCount').textContent = `Showing ${rows.length} of ${all.length} parcels in the queue${extra}`;
+  FF.icons();
+}
+
+async function loadQueue() {
+  $('dispBody').innerHTML = `<tr><td colspan="6">${skel(4, 'h-6')}</td></tr>`;
+  try {
+    const res = await FF.apiFetch('/parcels', { query: { include: 'details', limit: 100 }, silent: true });
+    state.parcels = res.data; state.parcelsTotal = res.total;
+  } catch (e) {
+    $('dispBody').innerHTML = `<tr><td colspan="6">${errorBox(e.message, 'queue')}</td></tr>`; FF.icons(); return;
+  }
+  renderQueue();
+}
+
+async function loadCouriers() {
+  const res = await FF.apiFetch('/staff', { query: { role: 'Courier', limit: 100 }, silent: true });
+  state.couriers = res.data;
+}
+
+async function refreshAfterChange(parcelId) {
+  state.flashId = parcelId;
+  await Promise.all([loadQueue(), loadSummary(), loadRecent()]);
+}
+
+// ---------------------------------------------------------------- drawer
+let drawer = null;
+const branchName = (id) => (state.branches.find((b) => b.branch_id === id) || {}).branch_name || `Branch #${id}`;
+const activeLoad = (staffId) => state.parcels.filter((p) => p.courier && p.courier.staff_id === staffId && ACTIVE.includes(p.current_status)).length;
+
+function drawerHtml(p) {
+  const closed = ['Delivered', 'Failed'].includes(p.current_status);
+  const next = NEXT[p.current_status];
+  const unpaid = p.current_status === 'Pending' && p.booking_status !== 'Confirmed';
+  const nextLabel = p.current_status === 'Failed' ? 'Retry — mark In Transit' : NEXT_LABEL[next];
+  const failable = ['In Transit', 'Out for Delivery'].includes(p.current_status);
+  const pay = p.payment;
+
+  const courierCards = state.couriers.length ? state.couriers.map((c) => {
+    const checked = p.courier && p.courier.staff_id === c.staff_id;
+    const load = activeLoad(c.staff_id);
+    return `<label class="courier-card">
+      <input type="radio" name="courier" value="${c.staff_id}" class="accent-[#2563EB] w-4 h-4" ${checked ? 'checked' : ''} ${closed ? 'disabled' : ''}>
+      <span class="w-9 h-9 rounded-full bg-slate-100 text-slate-600 grid place-items-center text-xs font-bold shrink-0">${esc(c.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join(''))}</span>
+      <span class="min-w-0 flex-1"><span class="block text-sm font-semibold truncate">${esc(c.name)}${checked ? ' <span class="text-xs font-medium text-royal">(current)</span>' : ''}</span>
+      <span class="block text-xs text-slate-500">${esc(branchName(c.branch_id))} • ${load} active parcel${load === 1 ? '' : 's'}</span></span></label>`;
+  }).join('') : '<div class="empty !py-6">No couriers on staff yet. Add one under Branches &amp; Staff.</div>';
+
+  return `<div class="p-6">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="text-xs font-semibold uppercase tracking-wide text-royal">${p.courier ? 'Reassign courier' : 'Assign courier'}</div>
+        <h2 id="drawerTitle" class="text-xl font-extrabold tracking-tight font-mono mt-1 break-all">${esc(p.tracking_number)}</h2>
+      </div>
+      <button type="button" class="p-2 -mr-2 rounded-lg hover:bg-slate-100" data-close aria-label="Close panel"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+
+    <dl class="mt-5 rounded-xl bg-slate-50 border border-line p-4 text-sm grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
+      <dt class="text-slate-500">Status</dt><dd>${FF.badge(p.current_status)}</dd>
+      <dt class="text-slate-500">Item</dt><dd class="font-medium">${esc(p.item_name)} <span class="text-slate-500 font-normal">• ${esc(p.weight)} kg</span></dd>
+      <dt class="text-slate-500">Route</dt><dd>${esc(p.sender_name)} <span class="text-slate-400">→</span> ${esc(p.receiver_name)}</dd>
+      <dt class="text-slate-500">Branch</dt><dd>${esc(p.branch_name)}</dd>
+      <dt class="text-slate-500">Booking</dt><dd class="flex items-center gap-2"><span class="font-mono">#${p.booking_id}</span>${FF.badge(p.booking_status)}</dd>
+      <dt class="text-slate-500">Payment</dt><dd>${pay ? `<span class="inline-flex items-center gap-2">${FF.badge(pay.payment_status)}<span class="font-mono text-xs">${FF.peso(pay.amount)} • ${esc(pay.payment_method)}</span></span>` : '<span class="text-slate-400">None yet</span>'}</dd>
+    </dl>
+
+    <h3 class="mt-6 mb-3 text-sm font-bold">Progress</h3>
+    <ol>${FF.stepper(p.current_status)}</ol>
+
+    <div class="mt-6 pt-5 border-t border-line">
+      <h3 class="text-sm font-bold mb-2">Move to next status</h3>
+      ${next ? `<div class="flex flex-wrap gap-2">
+        <button type="button" id="btnNext" class="btn btn-outline btn-sm" ${unpaid ? 'disabled' : ''}><i data-lucide="arrow-right" class="w-4 h-4"></i> ${esc(nextLabel)}</button>
+        ${failable ? '<button type="button" id="btnFail" class="btn btn-danger-outline btn-sm"><i data-lucide="octagon-x" class="w-4 h-4"></i> Mark Failed</button>' : ''}</div>
+        ${unpaid ? `<p class="text-xs text-amber-700 mt-2" id="nextWhy">Booking #${p.booking_id} is ${esc(p.booking_status)}. The parcel can only be Booked once its payment is verified (Paid).</p>`
+          : `<p class="text-xs text-slate-500 mt-2">${p.current_status === 'Failed' ? 'The delivery attempt failed. Retrying puts the parcel back In Transit.' : `Allowed next step: ${esc(next)}.`}</p>`}`
+        : '<p class="text-xs text-slate-500">This parcel is Delivered; its status can no longer change.</p>'}
+    </div>
+
+    <fieldset class="mt-6 pt-5 border-t border-line" ${closed ? 'disabled' : ''}>
+      <legend class="text-sm font-bold mb-3 float-left w-full">Courier</legend>
+      <div class="clear-both space-y-2" id="courierList">${courierCards}</div>
+      ${closed ? `<p class="text-xs text-slate-500 mt-3">This parcel is ${esc(p.current_status)}; its delivery team can no longer change.${p.current_status === 'Failed' ? ' Retry delivery above to reassign.' : ''}</p>` : ''}
+    </fieldset>
+
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+      ${p.courier ? '<button type="button" id="btnUnassign" class="btn btn-danger-outline btn-sm" ' + (closed ? 'disabled' : '') + '><i data-lucide="user-minus" class="w-4 h-4"></i> Unassign</button>' : '<span></span>'}
+      <div class="flex gap-3">
+        <button type="button" class="btn btn-outline" data-close>Cancel</button>
+        <button type="button" id="btnAssign" class="btn btn-primary" disabled><i data-lucide="user-check" class="w-4 h-4"></i> ${p.courier ? 'Reassign courier' : 'Assign courier'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function openDrawer(parcelId) {
+  let p = state.parcels.find((x) => x.parcel_id === parcelId);
+  if (!p) return;
+  if (!state.couriers.length) { try { await loadCouriers(); } catch (e) { FF.toast(e.message, 'error', { title: 'Could not load couriers' }); } }
+  drawer = FF.openModal({ position: 'right', html: drawerHtml(p), onClose: () => { drawer = null; } });
+  drawer.panel.setAttribute('aria-labelledby', 'drawerTitle');
+  wireDrawer(parcelId);
+}
+
+function rerenderDrawer(parcelId) {
+  if (!drawer) return;
+  const p = state.parcels.find((x) => x.parcel_id === parcelId);
+  if (!p) { drawer.close(); return; }
+  drawer.panel.innerHTML = drawerHtml(p);
+  FF.icons();
+  wireDrawer(parcelId);
+  const f = drawer.panel.querySelector('[data-close]'); if (f) f.focus();
+}
+
+function wireDrawer(parcelId) {
+  const panel = drawer.panel;
+  FF.icons();
+  panel.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => drawer && drawer.close(false)));
+  const p = () => state.parcels.find((x) => x.parcel_id === parcelId);
+  const assignBtn = panel.querySelector('#btnAssign');
+  const selected = () => { const r = panel.querySelector('input[name="courier"]:checked'); return r ? Number(r.value) : null; };
+  const currentId = () => (p().courier ? p().courier.staff_id : null);
+  panel.querySelectorAll('input[name="courier"]').forEach((r) => r.addEventListener('change', () => { assignBtn.disabled = selected() === null || selected() === currentId(); }));
+
+  const busy = (btn, on) => { btn.disabled = on; btn.setAttribute('aria-busy', String(on)); };
+
+  assignBtn.addEventListener('click', async () => {
+    const staff_id = selected(); if (staff_id === null) return;
+    busy(assignBtn, true);
+    try {
+      await FF.apiFetch(`/parcels/${parcelId}/delivery-team`, { method: 'PUT', body: { staff_id } });
+      const c = state.couriers.find((x) => x.staff_id === staff_id);
+      FF.toast(`${c ? c.name : 'Courier'} assigned to ${p().tracking_number}.`, 'success');
+      if (drawer) drawer.close(true);
+      await refreshAfterChange(parcelId);
+    } catch (e) { busy(assignBtn, false); }   // apiFetch already toasted the 409 / 422
+  });
+
+  const un = panel.querySelector('#btnUnassign');
+  if (un) un.addEventListener('click', async () => {
+    const parcel = p();
+    const ok = await FF.confirm({ title: 'Unassign courier?', danger: true, confirmLabel: 'Unassign',
+      message: `${parcel.courier.name} will be removed from ${parcel.tracking_number}. The parcel will show as Unassigned in the dispatch queue.` });
+    if (!ok) return;
+    try {
+      await FF.apiFetch(`/parcels/${parcelId}/delivery-team`, { method: 'DELETE' });
+      FF.toast(`Courier unassigned from ${parcel.tracking_number}.`, 'success');
+      if (drawer) drawer.close(true);
+      await refreshAfterChange(parcelId);
+    } catch (e) { /* toasted */ }
+  });
+
+  const move = async (btn, status, msg) => {
+    busy(btn, true);
+    try {
+      await FF.apiFetch(`/parcels/${parcelId}`, { method: 'PATCH', body: { current_status: status } });
+      FF.toast(msg, status === 'Failed' ? 'warning' : 'success');
+      await refreshAfterChange(parcelId);
+      rerenderDrawer(parcelId);
+    } catch (e) { busy(btn, false); }
+  };
+  const nx = panel.querySelector('#btnNext');
+  if (nx) nx.addEventListener('click', () => move(nx, NEXT[p().current_status], `${p().tracking_number} moved to ${NEXT[p().current_status]}.`));
+  const fl = panel.querySelector('#btnFail');
+  if (fl) fl.addEventListener('click', async () => {
+    const ok = await FF.confirm({ title: 'Mark delivery as failed?', danger: true, confirmLabel: 'Mark Failed',
+      message: `${p().tracking_number} will be flagged Failed. It can be retried later by moving it back to In Transit.` });
+    if (ok) move(fl, 'Failed', `${p().tracking_number} marked as Failed.`);
+  });
+}
+
+// ---------------------------------------------------------------- wiring
+$('dispBody').addEventListener('click', (e) => { const b = e.target.closest('[data-open]'); if (b) openDrawer(Number(b.dataset.open)); });
+$('dispSearch').addEventListener('input', FF.debounce((e) => { state.q = e.target.value; renderQueue(); }, 150));
+$('dispChips').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-f]'); if (!b) return;
+  state.filter = b.dataset.f;
+  $('dispChips').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  renderQueue();
+});
+document.addEventListener('click', (e) => {
+  const r = e.target.closest('[data-retry]'); if (!r) return;
+  ({ summary: loadSummary, recent: loadRecent, queue: loadQueue }[r.dataset.retry] || (() => {}))();
+});
+$('branchSel').addEventListener('change', (e) => {
+  state.branchId = e.target.value;
+  loadSummary(); loadRecent(); renderQueue();
+});
+
+(async function init() {
+  greet();
+  try {
+    const res = await FF.apiFetch('/branches', { query: { limit: 100 }, silent: true });
+    state.branches = res.data;
+    $('branchSel').innerHTML = '<option value="">All branches</option>' + state.branches.map((b) => `<option value="${b.branch_id}">${esc(b.branch_name)}</option>`).join('');
+  } catch (e) { /* page still works with "All branches" */ }
+  loadSummary(); loadRecent(); loadQueue();
+  loadCouriers().catch(() => {});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Freight-Flow Express – Branches &amp; Staff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#fff; --text:#0f172a; --muted:#64748b; --faint:#94a3b8; --line:#e5e7eb;
+  --blue:#2563eb; --blue-soft:#eff4ff; --nav:#111a2e; --nav-text:#cbd5e1; --nav-muted:#64748b;
+  --green-bg:#e8f8f1; --green-fg:#047857; --purple-bg:#f6effe; --purple-fg:#7e22ce; --red:#dc2626;
+  --err-bg:#fff0f1; --err-line:#fbcfd4; --err-fg:#be123c; --head:#f8fafc;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1220; --surface:#121a2c; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#243049;
+    --blue-soft:#1b2a4d; --nav:#0a101e; --green-bg:#0f3327; --green-fg:#34d399; --purple-bg:#2b1a45; --purple-fg:#c084fc;
+    --red:#f87171; --err-bg:#3b1618; --err-line:#6b2328; --err-fg:#fda4af; --head:#16203a; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1220; --surface:#121a2c; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#243049;
+  --blue-soft:#1b2a4d; --nav:#0a101e; --green-bg:#0f3327; --green-fg:#34d399; --purple-bg:#2b1a45; --purple-fg:#c084fc;
+  --red:#f87171; --err-bg:#3b1618; --err-line:#6b2328; --err-fg:#fda4af; --head:#16203a; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.top{height:64px;background:var(--surface);display:flex;align-items:center;padding:0 24px;gap:24px}
+.logo{width:164px;flex:none}
+.logo b{display:block;font-size:19px;font-weight:700;letter-spacing:.01em;line-height:1}
+.logo small{font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
+.crumb{color:var(--muted);font-size:13px;flex:1}
+.roles{display:flex;align-items:center;gap:4px;color:var(--muted)}
+.roles span{margin-right:12px;font-size:13px}
+.roles button{background:none;border:0;padding:8px 16px;border-radius:6px;font-weight:500;font-size:13px;color:var(--text)}
+.roles button[aria-pressed="true"]{background:var(--blue-soft);color:var(--blue)}
+
+.shell{display:grid;grid-template-columns:188px 1fr;min-height:calc(100vh - 64px)}
+.side{background:var(--nav);padding:20px 10px 16px;display:flex;flex-direction:column;color:var(--nav-text)}
+.side h6{margin:12px 10px 14px;font-size:10px;letter-spacing:.06em;color:var(--nav-muted);font-weight:600;text-transform:uppercase}
+.side nav{display:flex;flex-direction:column;gap:6px}
+.side nav a{display:flex;gap:14px;align-items:center;padding:11px 10px;border-radius:6px;color:var(--nav-text);text-decoration:none;font-weight:500;font-size:13.5px}
+.side nav a i{font-style:normal;font-size:10px;color:var(--nav-muted);width:14px}
+.side nav a[aria-current="page"]{background:var(--blue);color:#fff}
+.side nav a[aria-current="page"] i{color:#cfe0ff}
+.branch{margin-top:auto;background:#17223a;border-radius:8px;padding:14px 12px}
+.branch small{font-size:10px;letter-spacing:.05em;color:var(--nav-muted);font-weight:600;text-transform:uppercase}
+.branch p{margin:6px 0 8px;font-weight:500;font-size:13px;color:#fff}
+.ok{font-size:11px;color:#34d399;display:flex;align-items:center;gap:6px}
+.ok::before{content:"";width:6px;height:6px;border-radius:50%;background:#34d399}
+.signout{margin:18px 10px 0;color:var(--nav-text);font-size:13px;background:none;border:0;padding:0;text-align:left}
+
+main{padding:24px 27px 28px;min-width:0}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.03em;color:var(--blue);text-transform:uppercase;margin:0}
+.title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+h1{margin:6px 0 6px;font-size:30px;line-height:1.15;letter-spacing:-.01em;font-weight:700}
+.sub{margin:0;color:var(--muted);font-size:15px}
+.date{margin:14px 52px 0 0;font-size:12px;color:var(--muted);text-transform:uppercase;white-space:nowrap}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 332px;gap:34px;margin-top:30px;align-items:start}
+.row.solo{grid-template-columns:minmax(0,1fr)}
+.row.solo .form{display:none}
+h2{margin:0;font-size:22px;font-weight:600}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;height:42px;padding:0 20px;font-size:13px;font-weight:600}
+.btn:hover{background:var(--head)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{background:#1d4fd8}
+
+.list{overflow:hidden}
+.lt{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:22px 20px 20px}
+.lt p{margin:6px 0 0;color:var(--muted);font-size:14px}
+.lt .btn{min-width:176px;height:42px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:560px}
+th{background:var(--head);text-align:left;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);padding:16px 20px}
+td{padding:14px 20px;border-top:1px solid var(--line);font-size:14px;height:54px}
+td.id{font-weight:600}
+td .sm{color:var(--muted)}
+.pill{display:inline-block;padding:8px 20px;border-radius:99px;font-size:12px;font-weight:600;min-width:100px}
+.p-Manager,.p-Admin{background:var(--blue-soft);color:var(--blue)}
+.p-Courier{background:var(--green-bg);color:var(--green-fg)}
+.p-CSR{background:var(--purple-bg);color:var(--purple-fg)}
+.ic{display:flex;gap:22px;align-items:center}
+.ic button{background:none;border:0;padding:4px;display:grid;place-items:center;color:var(--muted)}
+.ic button.del{color:var(--red)}
+.ic button:hover{opacity:.7}
+.ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.fn{padding:12px 20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.fn.pg{display:flex;justify-content:space-between;align-items:center;padding:22px 20px 20px}
+.pager{display:flex;gap:14px}
+.pager button{background:none;border:0;padding:2px 3px;color:var(--muted);font-size:12px}
+.pager button[aria-current="page"]{color:var(--text);font-weight:600}
+
+.banner{margin-top:28px;background:var(--err-bg);border:1px solid var(--err-line);color:var(--err-fg);border-radius:8px;padding:16px 28px;font-size:16px;font-weight:500;display:flex;justify-content:space-between;gap:12px}
+.banner[hidden]{display:none}
+.banner button{background:none;border:0;color:inherit;font-size:18px;line-height:1;padding:0 4px}
+
+.form{padding:22px 20px 24px}
+.fh{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.fh h2{font-size:24px;font-weight:600}
+.x{background:none;border:0;font-size:22px;line-height:1;color:var(--muted);padding:6px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px}
+input,select{width:100%;height:42px;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:0 16px;font-size:14px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.inl{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:end}
+.inl .btn{height:42px;min-width:148px}
+.err{min-height:18px;margin:8px 0 0;font-size:12.5px;color:var(--err-fg)}
+.fa{display:flex;justify-content:flex-end;gap:14px;margin-top:14px}
+.fa .btn{min-width:108px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
+.toast.on{opacity:1}
+
+@media (max-width:1100px){.row{grid-template-columns:1fr}}
+@media (max-width:800px){
+  .shell{grid-template-columns:1fr}
+  .side{flex-direction:row;overflow-x:auto;padding:8px;gap:8px;align-items:center}
+  .side h6,.branch,.signout,.side nav a i{display:none}
+  .side nav{flex-direction:row}
+  .side nav a{white-space:nowrap}
+  .top{height:auto;flex-wrap:wrap;padding:12px 16px;gap:8px}
+  .crumb{display:none}
+  .roles{flex-wrap:wrap}
+  .title-row{flex-direction:column;gap:0}
+  .date{margin:8px 0 0}
+  h1{font-size:24px}
+  .inl,.two{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo"><b>FREIGHT—FLOW</b><small>EXPRESS</small></div>
+  <div class="crumb">Workspace / Operations</div>
+  <div class="roles" role="group" aria-label="View as">
+    <span>View As:</span>
+    <button aria-pressed="false">Customer</button>
+    <button aria-pressed="true">Manager</button>
+    <button aria-pressed="false">Courier</button>
+    <button aria-pressed="false">CSR</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="side">
+    <h6>Workspace</h6>
+    <nav aria-label="Primary">
+      <a href="#dashboard"><i>01</i>Dashboard</a>
+      <a href="#bookings"><i>02</i>Bookings &amp; Parcels</a>
+      <a href="#team"><i>03</i>Delivery Team</a>
+      <a href="#payments"><i>04</i>Payments</a>
+      <a href="#complaints"><i>05</i>Complaints</a>
+      <a href="#branches" aria-current="page"><i>06</i>Branches</a>
+      <a href="#staff" aria-current="page"><i>07</i>Staff</a>
+    </nav>
+    <div class="branch">
+      <small>Manila Central</small>
+      <p>Main branch · PH-MNL</p>
+      <span class="ok">All systems operational</span>
+    </div>
+    <button class="signout">Sign out →</button>
+  </aside>
+
+  <main>
+    <p class="eyebrow">Operations / Administration</p>
+    <div class="title-row">
+      <div>
+        <h1>Manage your network.</h1>
+        <p class="sub">Keep branch details, staff assignments, and access levels up to date.</p>
+      </div>
+      <span class="date">Mon, 16 Nov 2026</span>
+    </div>
+
+    <div class="row" id="branches">
+      <section class="card list" aria-labelledby="bd">
+        <div class="lt">
+          <div><h2 id="bd">Branches Directory</h2><p id="bcount"></p></div>
+          <button class="btn primary" id="addB">+ Add Branch</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Branch ID</th><th>Branch name</th><th>Address</th><th>Contact info</th><th>Actions</th></tr></thead>
+            <tbody id="brows"></tbody>
+          </table>
+        </div>
+        <div class="fn">Deletion is restricted while related records are active.</div>
+      </section>
+
+      <section class="card form" id="bform" aria-labelledby="bft">
+        <div class="fh"><h2 id="bft"></h2><button class="x" id="bx" aria-label="Close">✕</button></div>
+        <label for="bn" style="margin-top:0">Branch Name</label><input id="bn" value="Makati Service Center">
+        <label for="ba">Address</label><input id="ba" value="21 Ayala Avenue, Makati City">
+        <label for="bc">Contact Info</label>
+        <div class="inl"><input id="bc" value="02 8555 0400"><button class="btn primary" id="bsave"></button></div>
+        <p class="err" id="berr" role="alert"></p>
+      </section>
+    </div>
+
+    <div class="banner" id="banner" role="alert">
+      <span>409 Conflict: Cannot delete branch or staff with active bookings, parcels, or open complaints.</span>
+      <button id="bclose" aria-label="Dismiss">✕</button>
+    </div>
+
+    <div class="row" id="staff" style="margin-top:28px">
+      <section class="card list" aria-labelledby="sm">
+        <div class="lt">
+          <div><h2 id="sm">Staff Management</h2><p>Branch assignments &amp; access control</p></div>
+          <button class="btn primary" id="addS">+ Add Staff</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Staff ID</th><th>Name</th><th>Assigned branch</th><th>Role</th><th>Permission</th><th>Actions</th></tr></thead>
+            <tbody id="srows"></tbody>
+          </table>
+        </div>
+        <div class="fn pg"><span id="scount"></span>
+          <div class="pager"><button aria-label="Previous page">‹</button><button aria-current="page">1</button><button>2</button><button>3</button><button aria-label="Next page">›</button></div>
+        </div>
+      </section>
+
+      <section class="card form" id="sform" aria-labelledby="sft">
+        <div class="fh"><h2 id="sft"></h2></div>
+        <div class="two">
+          <div><label for="sn" style="margin-top:0">Full name</label><input id="sn" value="Nico Mendoza"></div>
+          <div><label for="se" style="margin-top:0">Email</label><input id="se" type="email" value="nico@freightflow.ph"></div>
+        </div>
+        <label for="sb">Assigned Branch</label><select id="sb"></select>
+        <div class="two">
+          <div><label for="sr">Role</label><select id="sr"><option>Manager</option><option selected>Courier</option><option>CSR</option></select></div>
+          <div><label for="sp">Permission Level</label><select id="sp"><option>Admin</option><option selected>Staff</option></select></div>
+        </div>
+        <p class="err" id="serr" role="alert"></p>
+        <div class="fa"><button class="btn" id="scancel">Cancel</button><button class="btn primary" id="ssave"></button></div>
+      </section>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+var B=[
+ {id:"PH-MNL",name:"Manila Central",addr:"100 Escolta St, Manila",tel:"02 8555 0100"},
+ {id:"PH-QC",name:"Quezon City Hub",addr:"32 Timog Ave, QC",tel:"02 8555 0200"},
+ {id:"PH-CEB",name:"Cebu Central",addr:"15 Osmeña Blvd, Cebu",tel:"032 555 0300"}
+];
+var S=[
+ {id:"ST-001",name:"Daniel Reyes",br:"Manila Central",role:"Manager",perm:"Admin",locked:1},
+ {id:"ST-014",name:"Joshua Reyes",br:"Quezon City Hub",role:"Courier",perm:"Staff",locked:1},
+ {id:"ST-023",name:"Andrea Villanueva",br:"Manila Central",role:"CSR",perm:"Staff",locked:1}
+];
+var total=24,nextS=25,bEdit=null,sEdit=null;
+var PEN='<svg viewBox="0 0 24 24"><path d="M4 20l1-4L17 4l3 3L8 19z"/><path d="M14 7l3 3"/></svg>';
+var BIN='<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+function acts(kind,id){return '<div class="ic"><button data-k="'+kind+'" data-a="edit" data-id="'+id+'" aria-label="Edit '+esc(id)+'">'+PEN+'</button><button class="del" data-k="'+kind+'" data-a="del" data-id="'+id+'" aria-label="Delete '+esc(id)+'">'+BIN+'</button></div>'}
+function toast(m){var t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(function(){t.classList.remove("on")},2400)}
+
+function renderB(){
+  $("bcount").textContent=B.length+" branch"+(B.length===1?"":"es")+" · Nationwide network";
+  $("brows").innerHTML=B.map(function(b){return '<tr><td class="id">'+esc(b.id)+'</td><td>'+esc(b.name)+'</td><td>'+esc(b.addr)+'</td><td>'+esc(b.tel)+'</td><td>'+acts("b",b.id)+'</td></tr>'}).join("");
+  var cur=$("sb").value;
+  $("sb").innerHTML=B.map(function(b){return '<option>'+esc(b.name)+'</option>'}).join("");
+  if(cur)$("sb").value=cur;
+}
+function renderS(){
+  $("scount").textContent="Showing "+S.length+" of "+total+" staff members";
+  $("srows").innerHTML=S.map(function(s){
+    return '<tr><td class="id">'+esc(s.id)+'</td><td class="sm">'+esc(s.name)+'</td><td>'+esc(s.br)+'</td>'+
+    '<td><span class="pill p-'+s.role+'">'+s.role+'</span></td>'+
+    '<td>'+(s.perm==="Admin"?'<span class="pill p-Admin">Admin</span>':'<span style="padding-left:20px">Staff</span>')+'</td><td>'+acts("s",s.id)+'</td></tr>';
+  }).join("");
+}
+function setB(edit){
+  bEdit=edit?edit.id:null;
+  $("bft").textContent=edit?"Edit Branch":"+ Add Branch";
+  $("bsave").textContent=edit?"Update Branch":"Save Branch";
+  if(edit){$("bn").value=edit.name;$("ba").value=edit.addr;$("bc").value=edit.tel}
+  $("berr").textContent="";
+  $("branches").classList.remove("solo");$("bn").focus();
+}
+function setS(edit){
+  sEdit=edit?edit.id:null;
+  $("sft").textContent=edit?"Edit Staff":"+ Add Staff";
+  $("ssave").textContent=edit?"Save Staff":"Create Staff";
+  if(edit){$("sn").value=edit.name;$("se").value=edit.email||"";$("sb").value=edit.br;$("sr").value=edit.role;$("sp").value=edit.perm}
+  $("serr").textContent="";
+  $("staff").classList.remove("solo");$("sn").focus();
+}
+function conflict(){$("banner").hidden=false;$("banner").scrollIntoView({block:"nearest"})}
+function ok(m){$("banner").hidden=true;toast(m)}
+
+$("addB").onclick=function(){$("bn").value=$("ba").value=$("bc").value="";setB(null)};
+$("addS").onclick=function(){$("sn").value=$("se").value="";$("sr").selectedIndex=1;$("sp").selectedIndex=1;setS(null)};
+$("bx").onclick=function(){$("branches").classList.add("solo")};
+$("scancel").onclick=function(){$("staff").classList.add("solo")};
+$("bclose").onclick=function(){$("banner").hidden=true};
+
+$("bsave").onclick=function(){
+  var n=$("bn").value.trim(),a=$("ba").value.trim(),c=$("bc").value.trim();
+  if(!n||!a||!c){$("berr").textContent="Fill in the branch name, address and contact info.";return}
+  if(bEdit){
+    var b=B.filter(function(x){return x.id===bEdit})[0],old=b.name;
+    b.name=n;b.addr=a;b.tel=c;
+    S.forEach(function(s){if(s.br===old)s.br=n});
+    ok(b.id+" updated");
+  }else{
+    var base="PH-"+n.split(/\s+/).map(function(w){return w[0]}).join("").toUpperCase().slice(0,3),id=base,k=2;
+    while(B.some(function(x){return x.id===id}))id=base+k++;
+    B.push({id:id,name:n,addr:a,tel:c});ok("Branch "+id+" added");
+  }
+  renderB();renderS();$("branches").classList.add("solo");bEdit=null;
+};
+$("ssave").onclick=function(){
+  var n=$("sn").value.trim(),e=$("se").value.trim();
+  if(!n||!/^\S+@\S+\.\S+$/.test(e)){$("serr").textContent="Enter a full name and a valid email address.";return}
+  if(sEdit){
+    var s=S.filter(function(x){return x.id===sEdit})[0];
+    s.name=n;s.email=e;s.br=$("sb").value;s.role=$("sr").value;s.perm=$("sp").value;ok(s.id+" updated");
+  }else{
+    var id="ST-"+String(nextS++).padStart(3,"0");
+    S.push({id:id,name:n,email:e,br:$("sb").value,role:$("sr").value,perm:$("sp").value});total++;ok(id+" created");
+  }
+  renderB();renderS();$("staff").classList.add("solo");sEdit=null;
+};
+
+document.querySelector("main").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-a]");if(!b)return;
+  var k=b.dataset.k,id=b.dataset.id;
+  if(k==="b"){
+    var br=B.filter(function(x){return x.id===id})[0];
+    if(b.dataset.a==="edit")return setB(br);
+    var used=br.locked||S.some(function(s){return s.br===br.name});
+    if(used)return conflict();
+    if(confirm("Delete branch "+id+"?")){B=B.filter(function(x){return x.id!==id});renderB();ok(id+" deleted")}
+  }else{
+    var st=S.filter(function(x){return x.id===id})[0];
+    if(b.dataset.a==="edit")return setS(st);
+    if(st.locked)return conflict();
+    if(confirm("Delete "+id+"?")){S=S.filter(function(x){return x.id!==id});total--;renderS();ok(id+" deleted")}
+  }
+});
+document.querySelector(".roles").onclick=function(e){
+  var b=e.target.closest("button");if(!b)return;
+  [].forEach.call(this.querySelectorAll("button"),function(x){x.setAttribute("aria-pressed",x===b)});
+};
+renderB();renderS();
+$("bft").textContent="+ Add Branch";$("bsave").textContent="Save Branch";
+$("sft").textContent="+ Add Staff";$("ssave").textContent="Create Staff";
+$("sb").value="Manila Central";
+</script>
+</body>
+</html>

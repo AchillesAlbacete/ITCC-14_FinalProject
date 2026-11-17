@@ -1,0 +1,2568 @@
+# ==============================================================================
+# Revision Summary (Addressing Instructor Feedback from Nov 10, 2026 & ERD/Relational Schema)
+# ==============================================================================
+# 1. Unified OpenAPI Specification & Removal of Wrapper Artifacts:
+#    - Merged all modules (Customers, Branches, Staff, Bookings, Payments, Parcels,
+#      Complaints, and DeliveryTeam) into one valid OpenAPI 3.0.3 file
+#      (`ITCC14API_FreightFlow_Final.yaml`).
+#    - Exported the Parcels and Complaints modules cleanly without `line` or
+#      `content` source wrapper tags.
+# 2. Standardized Servers, Authentication, Shared Schemas & Error Formats:
+#    - Standardized server URLs (`https://api.freight-flow.com/v1` and
+#      `http://localhost:3000/api/v1`), global JWT `bearerAuth` security, shared
+#      pagination (`PageQuery`, `LimitQuery`, `{ data, page, limit, total }`),
+#      and a single reusable `Error` schema across all 4xx responses (`400`, `401`,
+#      `403`, `404`, `409`, `422`).
+# 3. Complete Tags, Request/Response Examples & 4xx Responses Across All Modules:
+#    - Added explicit tags, schema-matched request/response examples, and 4xx
+#      responses with `$ref` error schemas on all endpoints—specifically filling
+#      gaps in `Branches`, `Staff`, `GET /bookings`, and `GET /payments`.
+# 4. Role-Based Access Control (Customer, Staff Specializations & Admin):
+#    - Defined explicit permissions for `Admin`, `Staff` (`Manager`, `Courier`,
+#      `Customer Service Representative`), and `Customer` (`Retail`, `E-Commerce`,
+#      `Non-Profit`) in `info.description` and every operation's description,
+#      enforced with `401 Unauthorized` and `403 Forbidden` responses.
+# 5. Structured Complaint Resolution Workflow:
+#    - Completed `PATCH /complaints/{complaint_id}` with the `ComplaintResolution`
+#      schema (`staff_id`, `status` enum `[Pending, Investigating, Resolved, Dismissed]`,
+#      and `outcome`) to support structured CSR assignment and resolution.
+# 6. Parcel Status Lifecycle, Payment Verification & Cascade Rules:
+#    - Documented sequential parcel status transitions (`Pending` -> `Booked` ->
+#      `In Transit` -> `Out for Delivery` -> `Delivered` or `Failed`, blocking
+#      regression from `Delivered` with `409 Conflict`).
+#    - Documented 1:1 booking-to-payment verification (`Paid` payment transitions
+#      booking from `Pending` to `Confirmed`; voiding reverts booking to `Pending`)
+#      and cascade/restriction rules when deleting `Branches`, `Customers`, `Staff`,
+#      `Bookings`, `Payments`, or `Parcels`.
+# 7. EERD & Relational Diagram Alignment (Only Essential Missing Routes Added):
+#    - Added `sender_id` and `receiver_id` FKs to `Parcel` (`Generates` / `Receives`),
+#      `first_name`/`last_name` (`F_name`/`L_name`) to `RetailCustomerCreate`, and
+#      aligned `contact_info` and column lengths (`varchar`, `decimal(5,2)`, `decimal(10,2)`).
+#    - Added `/parcels/{parcel_id}/delivery-team` (`GET`, `PUT`, `DELETE`) to fulfill
+#      the missing required action for the `Delivery team` associative table
+#      (`staff_id`, `parcel_id`) linking `Courier` staff to parcels.
+# ==============================================================================
+
+openapi: 3.0.3
+info:
+  title: Freight-Flow Logistics API
+  description: |
+    REST API specification for the **Freight-Flow Express** logistics system, aligned with the Enhanced Entity-Relationship Diagram (EERD) and Relational Schema.
+
+    ### Access Roles & Staff Specializations
+    - **Admin**: Full unrestricted access across all branches, staff, customers, bookings, payments, parcels, delivery assignments, and complaints.
+    - **Staff** (EERD overlapping specializations):
+      - **Manager**: Manage branch operations, courier assignments, bookings, payments, parcels, and complaints.
+      - **Courier (Delivery Team)**: View assigned parcels via the Delivery Team roster and update parcel delivery statuses (`In Transit`, `Out for Delivery`, `Delivered`, `Failed`).
+      - **Customer Service Representative (CSR)**: View customer/parcel records and claim, investigate, and resolve customer complaints.
+    - **Customer** (`Retail`, `E-Commerce`, `Non-Profit`): Manage own profile, create/view own bookings, track parcels where they are `sender_id` or `receiver_id`, view/pay for own bookings, and file/view own complaints.
+
+    ### Core Business Logic, Status Lifecycles & Cascade Rules
+    - **Customer Subtypes (Disjoint Specialization)**: Every customer must be `Retail`, `E-Commerce`, or `Non-Profit`, enforcing subtype-specific required attributes.
+    - **Parcel Sender & Receiver**: Every parcel belongs to one `booking_id` and links two customers: `sender_id` (`Generates`) and `receiver_id` (`Receives`). Tracking numbers (`FF-TRK-XXXXXX`) are system-generated upon creation.
+    - **Allowed Parcel Status Changes**: Parcels progress sequentially: `Pending` -> `Booked` -> `In Transit` -> `Out for Delivery` -> `Delivered` (or `Failed` during transit/delivery). Once a parcel reaches `Delivered`, its status cannot regress (`409 Conflict`).
+    - **Payment Verification (1:1 Booking-to-Payment)**: Each booking generates at most one active payment (`409 Conflict` if a duplicate active payment is submitted). A booking remains `Pending` until its payment is verified as `Paid`, which transitions the booking to `Confirmed`.
+    - **Delivery Team Assignment**: Associates a `Staff` member with role `Courier` to a `Parcel` (`422 ValidationError` if the assigned staff member is not a `Courier`).
+    - **Referential Integrity & Cascade Rules on Cancel/Delete**:
+      - **Branches**: Deletion is restricted (`409 Conflict`) if staff members or active bookings are assigned.
+      - **Customers**: Deletion is restricted (`409 Conflict`) if active bookings, parcels, or unresolved complaints exist.
+      - **Staff**: Deletion is restricted (`409 Conflict`) if assigned to active Delivery Team parcels or open complaints.
+      - **Bookings**: Deleting or cancelling cascades to delete associated `Pending`/`Booked` parcels and voids the linked payment (`409 Conflict` if any parcel is already `In Transit` or `Delivered`).
+      - **Payments**: Voiding a payment (`DELETE /payments/{payment_id}` or `payment_status: Voided`) reverts the associated booking status to `Pending`.
+      - **Parcels**: Deleting a parcel removes its `DeliveryTeam` assignment without deleting the parent booking (`409 Conflict` if already `In Transit` or `Delivered`).
+  version: 1.0.0
+servers:
+  - url: https://api.freight-flow.com/v1
+    description: Production server
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+tags:
+  - name: Customers
+    description: Manage Retail, E-Commerce, and Non-Profit customer accounts
+  - name: Branches
+    description: Manage logistics branch locations
+  - name: Staff
+    description: Manage logistics staff (Managers, Couriers, Customer Service Representatives)
+  - name: Bookings
+    description: Operations related to customer parcel bookings
+  - name: Payments
+    description: Operations related to 1:1 booking payments and verification
+  - name: Parcels
+    description: Operations for managing parcels, sender/receiver links, and delivery statuses
+  - name: DeliveryTeam
+    description: Assign and manage Couriers (Delivery Team) handling specific parcels
+  - name: Complaints
+    description: Operations for logging, assigning to CSRs, and resolving customer complaints
+security:
+  - bearerAuth: []
+
+paths:
+  # ============================================================================
+  # CUSTOMERS
+  # ============================================================================
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      description: |
+        Returns a paginated list of customers.
+        - **Permissions**: `Admin`, `Manager`, `Customer Service Representative` (all customers); `Customer` (`403 Forbidden` — customers must use `GET /customers/{customer_id}` for their own profile).
+      operationId: listCustomers
+      parameters:
+        - $ref: '#/components/parameters/AccountTypeQuery'
+        - $ref: '#/components/parameters/SearchQuery'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Paginated list of customers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerList'
+              example:
+                data:
+                  - customer_id: 502
+                    name: "Maria Clara Santos"
+                    first_name: "Maria Clara"
+                    last_name: "Santos"
+                    contact_info: "+63-917-555-0101"
+                    account_type: "Retail"
+                    address: "123 Hayes St, Cagayan de Oro City"
+                    created_at: "2026-11-01T08:30:00Z"
+                    updated_at: "2026-11-03T10:00:00Z"
+                page: 1
+                limit: 20
+                total: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      description: |
+        Creates a new customer account (`Retail`, `E-Commerce`, or `Non-Profit`). Required subtype fields depend on `account_type`.
+        - **Permissions**: `Admin`, `Staff` (`Manager`, `Customer Service Representative`), or customer self-registration.
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+            examples:
+              retailCustomer:
+                summary: Retail Customer
+                value:
+                  name: "Maria Clara Santos"
+                  first_name: "Maria Clara"
+                  last_name: "Santos"
+                  contact_info: "+63-917-555-0101"
+                  account_type: "Retail"
+                  address: "123 Hayes St, Cagayan de Oro City"
+              ecommerceCustomer:
+                summary: E-Commerce Customer
+                value:
+                  name: "Kagay-an Tech Hub"
+                  contact_info: "orders@kagayantech.ph"
+                  account_type: "E-Commerce"
+                  address: "Unit 4B Limketkai Center, Cagayan de Oro City"
+                  store_name: "Kagay-an Tech Official"
+                  business_registration_number: "DTI-2026-884120"
+                  return_address_override: "Warehouse 2, Carmen, Cagayan de Oro City"
+              nonProfitCustomer:
+                summary: Non-Profit Customer
+                value:
+                  name: "Mindanao Relief Foundation"
+                  contact_info: "logistics@mindanaorelief.org"
+                  account_type: "Non-Profit"
+                  address: "45 Corrales Ave, Cagayan de Oro City"
+                  tax_exempt_status: true
+                  charity_registration_number: "SEC-CN202400912"
+                  donor_reference_codes: ["DON-2026-A1", "DON-2026-B4"]
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+              example:
+                customer_id: 502
+                name: "Maria Clara Santos"
+                first_name: "Maria Clara"
+                last_name: "Santos"
+                contact_info: "+63-917-555-0101"
+                account_type: "Retail"
+                address: "123 Hayes St, Cagayan de Oro City"
+                created_at: "2026-11-01T08:30:00Z"
+                updated_at: "2026-11-01T08:30:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /customers/{customer_id}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerIdPath'
+    get:
+      tags: [Customers]
+      summary: Get a customer by ID
+      description: |
+        Retrieves a single customer profile including subtype attributes.
+        - **Permissions**: `Admin`, `Staff` (any customer); `Customer` (own `customer_id` only, otherwise `403 Forbidden`).
+      operationId: getCustomer
+      responses:
+        '200':
+          description: The requested customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+              example:
+                customer_id: 502
+                name: "Maria Clara Santos"
+                first_name: "Maria Clara"
+                last_name: "Santos"
+                contact_info: "+63-917-555-0101"
+                account_type: "Retail"
+                address: "123 Hayes St, Cagayan de Oro City"
+                created_at: "2026-11-01T08:30:00Z"
+                updated_at: "2026-11-03T10:00:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Customers]
+      summary: Replace a customer
+      description: |
+        Full replacement of a customer profile.
+        - **Permissions**: `Admin`, `Manager` (any customer); `Customer` (own `customer_id` only).
+      operationId: replaceCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+            example:
+              name: "Maria Clara Santos"
+              first_name: "Maria Clara"
+              last_name: "Santos"
+              contact_info: "+63-917-555-0199"
+              account_type: "Retail"
+              address: "789 Tiano Bros St, Cagayan de Oro City"
+      responses:
+        '200':
+          description: Customer replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+              example:
+                customer_id: 502
+                name: "Maria Clara Santos"
+                first_name: "Maria Clara"
+                last_name: "Santos"
+                contact_info: "+63-917-555-0199"
+                account_type: "Retail"
+                address: "789 Tiano Bros St, Cagayan de Oro City"
+                created_at: "2026-11-01T08:30:00Z"
+                updated_at: "2026-11-04T09:15:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    patch:
+      tags: [Customers]
+      summary: Partially update a customer
+      description: |
+        Updates specific fields on a customer record. Submitting fields belonging to a different `account_type` returns `422 ValidationError`.
+        - **Permissions**: `Admin`, `Manager` (any customer); `Customer` (own `customer_id` only).
+      operationId: updateCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdate'
+            example:
+              contact_info: "+63-917-555-0199"
+              address: "789 Tiano Bros St, Cagayan de Oro City"
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+              example:
+                customer_id: 502
+                name: "Maria Clara Santos"
+                first_name: "Maria Clara"
+                last_name: "Santos"
+                contact_info: "+63-917-555-0199"
+                account_type: "Retail"
+                address: "789 Tiano Bros St, Cagayan de Oro City"
+                created_at: "2026-11-01T08:30:00Z"
+                updated_at: "2026-11-04T09:20:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Customers]
+      summary: Delete a customer
+      description: |
+        Deletes a customer record. Returns `409 Conflict` if the customer has active bookings, in-transit parcels (as sender or receiver), or unresolved complaints.
+        - **Permissions**: `Admin` only.
+      operationId: deleteCustomer
+      responses:
+        '204':
+          description: Customer deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ============================================================================
+  # BRANCHES
+  # ============================================================================
+  /branches:
+    get:
+      tags: [Branches]
+      summary: Retrieve all branches
+      description: |
+        Returns a paginated list of logistics branches.
+        - **Permissions**: All authenticated users (`Admin`, `Staff`, `Customer`).
+      operationId: getAllBranches
+      parameters:
+        - $ref: '#/components/parameters/SearchQuery'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Paginated list of branches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchList'
+              example:
+                data:
+                  - branch_id: 12
+                    branch_name: "Cagayan de Oro Main"
+                    address: "Velez St, Cagayan de Oro City"
+                    contact_info: "cdo.main@freight-flow.com"
+                page: 1
+                limit: 20
+                total: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Branches]
+      summary: Create a new branch
+      description: |
+        Registers a new logistics branch location.
+        - **Permissions**: `Admin` only.
+      operationId: createBranch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchInput'
+            example:
+              branch_name: "Cagayan de Oro Main"
+              address: "Velez St, Cagayan de Oro City"
+              contact_info: "cdo.main@freight-flow.com"
+      responses:
+        '201':
+          description: Branch created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+              example:
+                branch_id: 12
+                branch_name: "Cagayan de Oro Main"
+                address: "Velez St, Cagayan de Oro City"
+                contact_info: "cdo.main@freight-flow.com"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /branches/{branch_id}:
+    parameters:
+      - $ref: '#/components/parameters/BranchIdPath'
+    get:
+      tags: [Branches]
+      summary: Retrieve a single branch by ID
+      description: |
+        Retrieves branch details by ID.
+        - **Permissions**: All authenticated users (`Admin`, `Staff`, `Customer`).
+      operationId: getBranchById
+      responses:
+        '200':
+          description: A single branch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+              example:
+                branch_id: 12
+                branch_name: "Cagayan de Oro Main"
+                address: "Velez St, Cagayan de Oro City"
+                contact_info: "cdo.main@freight-flow.com"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Branches]
+      summary: Update an existing branch
+      description: |
+        Updates branch name, address, or contact info.
+        - **Permissions**: `Admin`, or `Manager` assigned to this `branch_id`.
+      operationId: updateBranch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchInput'
+            example:
+              branch_name: "Cagayan de Oro Main Hub"
+              address: "102 Velez St, Cagayan de Oro City"
+              contact_info: "+63-88-856-1234"
+      responses:
+        '200':
+          description: Branch updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+              example:
+                branch_id: 12
+                branch_name: "Cagayan de Oro Main Hub"
+                address: "102 Velez St, Cagayan de Oro City"
+                contact_info: "+63-88-856-1234"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Branches]
+      summary: Delete a branch
+      description: |
+        Deletes a branch. Returns `409 Conflict` if staff members or active bookings are assigned to this branch.
+        - **Permissions**: `Admin` only.
+      operationId: deleteBranch
+      responses:
+        '204':
+          description: Branch deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ============================================================================
+  # STAFF
+  # ============================================================================
+  /staff:
+    get:
+      tags: [Staff]
+      summary: Retrieve all staff members
+      description: |
+        Returns a paginated list of staff members, optionally filtered by `branch_id` or `role`.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: getAllStaff
+      parameters:
+        - name: branch_id
+          in: query
+          required: false
+          description: Filter staff by assigned branch ID
+          schema:
+            type: integer
+            minimum: 1
+        - name: role
+          in: query
+          required: false
+          description: Filter staff by EERD role specialization
+          schema:
+            $ref: '#/components/schemas/StaffRole'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Paginated list of staff members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffList'
+              example:
+                data:
+                  - staff_id: 5
+                    branch_id: 12
+                    name: "Joshua Reyes"
+                    role: "Courier"
+                    permission_level: "Staff"
+                page: 1
+                limit: 20
+                total: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Staff]
+      summary: Create a new staff member
+      description: |
+        Creates a new staff member assigned to a branch with an EERD specialization role (`Manager`, `Courier`, or `Customer Service Representative`).
+        - **Permissions**: `Admin` only.
+      operationId: createStaff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffInput'
+            example:
+              branch_id: 12
+              name: "Joshua Reyes"
+              role: "Courier"
+              permission_level: "Staff"
+      responses:
+        '201':
+          description: Staff member created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+              example:
+                staff_id: 5
+                branch_id: 12
+                name: "Joshua Reyes"
+                role: "Courier"
+                permission_level: "Staff"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /staff/{staff_id}:
+    parameters:
+      - $ref: '#/components/parameters/StaffIdPath'
+    get:
+      tags: [Staff]
+      summary: Retrieve a single staff member by ID
+      description: |
+        Retrieves staff member details by ID.
+        - **Permissions**: `Admin`, `Manager`, or the authenticated `Staff` member viewing their own record.
+      operationId: getStaffById
+      responses:
+        '200':
+          description: A single staff member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+              example:
+                staff_id: 5
+                branch_id: 12
+                name: "Joshua Reyes"
+                role: "Courier"
+                permission_level: "Staff"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Staff]
+      summary: Update an existing staff member
+      description: |
+        Updates a staff member's branch, name, role, or permission level.
+        - **Permissions**: `Admin` only.
+      operationId: updateStaff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffInput'
+            example:
+              branch_id: 12
+              name: "Joshua Reyes"
+              role: "Manager"
+              permission_level: "Admin"
+      responses:
+        '200':
+          description: Staff member updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+              example:
+                staff_id: 5
+                branch_id: 12
+                name: "Joshua Reyes"
+                role: "Manager"
+                permission_level: "Admin"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Staff]
+      summary: Delete a staff member
+      description: |
+        Deletes a staff member. Returns `409 Conflict` if the staff member is currently assigned to active Delivery Team parcels or open complaints.
+        - **Permissions**: `Admin` only.
+      operationId: deleteStaff
+      responses:
+        '204':
+          description: Staff member deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ============================================================================
+  # BOOKINGS
+  # ============================================================================
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: Retrieve bookings
+      description: |
+        Returns a paginated list of bookings.
+        - **Permissions**: `Admin`, `Staff` (all bookings, filterable by `customer_id`, `branch_id`, or `booking_status`); `Customer` (automatically scoped to their own `customer_id`; querying another `customer_id` returns `403 Forbidden`).
+      operationId: getAllBookings
+      parameters:
+        - name: customer_id
+          in: query
+          required: false
+          description: Filter bookings by customer ID
+          schema:
+            type: integer
+            minimum: 1
+        - name: branch_id
+          in: query
+          required: false
+          description: Filter bookings by originating branch ID
+          schema:
+            type: integer
+            minimum: 1
+        - name: booking_status
+          in: query
+          required: false
+          description: Filter bookings by status
+          schema:
+            $ref: '#/components/schemas/BookingStatus'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Paginated list of bookings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingList'
+              example:
+                data:
+                  - booking_id: 1001
+                    customer_id: 502
+                    branch_id: 12
+                    booking_date: "2026-11-03T10:00:00Z"
+                    booking_status: "Pending"
+                page: 1
+                limit: 20
+                total: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Bookings]
+      summary: Create a new booking
+      description: |
+        Places a new booking originating at a specified `branch_id`. Initial `booking_status` defaults to `Pending` until payment is verified as `Paid`.
+        - **Permissions**: `Admin`, `Staff` (`Manager`, `Customer Service Representative`), or `Customer` (must match own `customer_id`).
+      operationId: createBooking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingInput'
+            example:
+              customer_id: 502
+              branch_id: 12
+              booking_status: "Pending"
+      responses:
+        '201':
+          description: Booking created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+              example:
+                booking_id: 1001
+                customer_id: 502
+                branch_id: 12
+                booking_date: "2026-11-03T10:00:00Z"
+                booking_status: "Pending"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /bookings/{booking_id}:
+    parameters:
+      - $ref: '#/components/parameters/BookingIdPath'
+    get:
+      tags: [Bookings]
+      summary: Retrieve a specific booking by ID
+      description: |
+        Retrieves details for a single booking.
+        - **Permissions**: `Admin`, `Staff` (any booking); `Customer` (own booking only).
+      operationId: getBookingById
+      responses:
+        '200':
+          description: Booking details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+              example:
+                booking_id: 1001
+                customer_id: 502
+                branch_id: 12
+                booking_date: "2026-11-03T10:00:00Z"
+                booking_status: "Confirmed"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Bookings]
+      summary: Replace an existing booking
+      description: |
+        Full replacement of a booking record.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: updateBooking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingInput'
+            example:
+              customer_id: 502
+              branch_id: 12
+              booking_status: "Confirmed"
+      responses:
+        '200':
+          description: Booking updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+              example:
+                booking_id: 1001
+                customer_id: 502
+                branch_id: 12
+                booking_date: "2026-11-03T10:00:00Z"
+                booking_status: "Confirmed"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    patch:
+      tags: [Bookings]
+      summary: Partially update a booking
+      description: |
+        Updates booking branch or status (e.g., cancelling a `Pending` booking).
+        - **Permissions**: `Admin`, `Manager` (any booking); `Customer` (may cancel own `Pending` booking only).
+      operationId: patchBooking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingUpdate'
+            example:
+              booking_status: "Cancelled"
+      responses:
+        '200':
+          description: Booking updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+              example:
+                booking_id: 1001
+                customer_id: 502
+                branch_id: 12
+                booking_date: "2026-11-03T10:00:00Z"
+                booking_status: "Cancelled"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Bookings]
+      summary: Cancel or delete a booking
+      description: |
+        Cancelling/deleting a booking cascades to delete its `Pending`/`Booked` parcels and voids its associated payment. Returns `409 Conflict` if any parcel in the booking is already `In Transit` or `Delivered`.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: deleteBooking
+      responses:
+        '204':
+          description: Booking deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ============================================================================
+  # PAYMENTS
+  # ============================================================================
+  /payments:
+    get:
+      tags: [Payments]
+      summary: Retrieve payments
+      description: |
+        Returns a paginated list of payments.
+        - **Permissions**: `Admin`, `Manager` (all payments); `Customer` (payments linked to their own bookings only; querying another customer's `booking_id` returns `403 Forbidden`).
+      operationId: getAllPayments
+      parameters:
+        - name: booking_id
+          in: query
+          required: false
+          description: Filter payment by associated booking ID (1:1 relationship)
+          schema:
+            type: integer
+            minimum: 1
+        - name: payment_status
+          in: query
+          required: false
+          description: Filter by payment status
+          schema:
+            $ref: '#/components/schemas/PaymentStatus'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Paginated list of payments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentList'
+              example:
+                data:
+                  - payment_id: 9001
+                    booking_id: 1001
+                    payment_method: "GCash"
+                    amount: 150.50
+                    payment_status: "Paid"
+                    transaction_date: "2026-11-03T10:05:00Z"
+                page: 1
+                limit: 20
+                total: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Payments]
+      summary: Process a new payment
+      description: |
+        Records a payment for a booking (1:1 relationship). Returns `409 Conflict` if the booking already has a non-voided payment or is `Cancelled`. Setting `payment_status` to `Paid` automatically updates the linked booking to `Confirmed`.
+        - **Permissions**: `Admin`, `Manager`, or `Customer` (for own booking).
+      operationId: createPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInput'
+            example:
+              booking_id: 1001
+              payment_method: "GCash"
+              amount: 150.50
+              payment_status: "Paid"
+      responses:
+        '201':
+          description: Payment processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                payment_id: 9001
+                booking_id: 1001
+                payment_method: "GCash"
+                amount: 150.50
+                payment_status: "Paid"
+                transaction_date: "2026-11-03T10:05:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /payments/{payment_id}:
+    parameters:
+      - $ref: '#/components/parameters/PaymentIdPath'
+    get:
+      tags: [Payments]
+      summary: Retrieve a specific payment by ID
+      description: |
+        Retrieves payment details by ID.
+        - **Permissions**: `Admin`, `Manager` (any payment); `Customer` (own booking's payment only).
+      operationId: getPaymentById
+      responses:
+        '200':
+          description: Payment details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                payment_id: 9001
+                booking_id: 1001
+                payment_method: "GCash"
+                amount: 150.50
+                payment_status: "Paid"
+                transaction_date: "2026-11-03T10:05:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Payments]
+      summary: Replace a payment record
+      description: |
+        Full update of a payment record.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: updatePayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInput'
+            example:
+              booking_id: 1001
+              payment_method: "Card"
+              amount: 150.50
+              payment_status: "Paid"
+      responses:
+        '200':
+          description: Payment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                payment_id: 9001
+                booking_id: 1001
+                payment_method: "Card"
+                amount: 150.50
+                payment_status: "Paid"
+                transaction_date: "2026-11-03T10:05:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    patch:
+      tags: [Payments]
+      summary: Partially update payment status or method
+      description: |
+        Updates `payment_status` or `payment_method`. Transitioning to `Paid` updates the linked booking to `Confirmed`; transitioning to `Voided` reverts the linked booking to `Pending`.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: patchPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentUpdate'
+            example:
+              payment_status: "Paid"
+      responses:
+        '200':
+          description: Payment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                payment_id: 9001
+                booking_id: 1001
+                payment_method: "GCash"
+                amount: 150.50
+                payment_status: "Paid"
+                transaction_date: "2026-11-03T10:05:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Payments]
+      summary: Void a payment
+      description: |
+        Voids a payment and reverts the associated booking status to `Pending`.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: deletePayment
+      responses:
+        '204':
+          description: Payment voided successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # PARCELS
+  # ============================================================================
+  /parcels:
+    get:
+      tags: [Parcels]
+      summary: Retrieve parcels
+      description: |
+        Returns a paginated list of parcels, linking `booking_id`, `sender_id`, and `receiver_id`.
+        - **Permissions**: `Admin`, `Staff` (all parcels, or `Courier` filtered to assigned parcels); `Customer` (automatically scoped to parcels where they are `sender_id` or `receiver_id`).
+      operationId: getAllParcels
+      parameters:
+        - name: booking_id
+          in: query
+          required: false
+          description: Filter parcels belonging to a specific booking
+          schema:
+            type: integer
+            minimum: 1
+        - name: sender_id
+          in: query
+          required: false
+          description: Filter parcels by sender customer ID
+          schema:
+            type: integer
+            minimum: 1
+        - name: receiver_id
+          in: query
+          required: false
+          description: Filter parcels by receiver customer ID
+          schema:
+            type: integer
+            minimum: 1
+        - name: current_status
+          in: query
+          required: false
+          description: Filter parcels by their current delivery status
+          schema:
+            $ref: '#/components/schemas/ParcelStatus'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Paginated list of parcels
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParcelList'
+              example:
+                data:
+                  - parcel_id: 1
+                    booking_id: 1001
+                    sender_id: 502
+                    receiver_id: 509
+                    tracking_number: "FF-TRK-983421"
+                    weight: 2.50
+                    item_name: "Electronics - Mechanical Keyboard"
+                    current_status: "In Transit"
+                page: 1
+                limit: 20
+                total: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Parcels]
+      summary: Create a new parcel entry
+      description: |
+        Registers a parcel under an existing `booking_id` with `sender_id` and `receiver_id`. Generates a unique `tracking_number` (`FF-TRK-XXXXXX`) automatically.
+        - **Permissions**: `Admin`, `Staff` (`Manager`, `Customer Service Representative`), or `Customer` (for own booking).
+      operationId: createParcel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParcelCreate'
+            example:
+              booking_id: 1001
+              sender_id: 502
+              receiver_id: 509
+              weight: 2.50
+              item_name: "Electronics - Mechanical Keyboard"
+              current_status: "Booked"
+      responses:
+        '201':
+          description: Parcel successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+              example:
+                parcel_id: 1
+                booking_id: 1001
+                sender_id: 502
+                receiver_id: 509
+                tracking_number: "FF-TRK-983421"
+                weight: 2.50
+                item_name: "Electronics - Mechanical Keyboard"
+                current_status: "Booked"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /parcels/{parcel_id}:
+    parameters:
+      - $ref: '#/components/parameters/ParcelIdPath'
+    get:
+      tags: [Parcels]
+      summary: Get parcel by ID
+      description: |
+        Retrieves parcel details including `tracking_number`, `sender_id`, `receiver_id`, and `current_status`.
+        - **Permissions**: `Admin`, `Staff` (any parcel); `Customer` (must be `sender_id` or `receiver_id`).
+      operationId: getParcelById
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+              example:
+                parcel_id: 1
+                booking_id: 1001
+                sender_id: 502
+                receiver_id: 509
+                tracking_number: "FF-TRK-983421"
+                weight: 2.50
+                item_name: "Electronics - Mechanical Keyboard"
+                current_status: "In Transit"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Parcels]
+      summary: Replace an existing parcel
+      description: |
+        Full update of parcel details. Returns `409 Conflict` if attempting to regress a `Delivered` parcel's status.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: updateParcel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParcelCreate'
+            example:
+              booking_id: 1001
+              sender_id: 502
+              receiver_id: 509
+              weight: 2.75
+              item_name: "Electronics - Mechanical Keyboard & Wrist Rest"
+              current_status: "In Transit"
+      responses:
+        '200':
+          description: Parcel successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+              example:
+                parcel_id: 1
+                booking_id: 1001
+                sender_id: 502
+                receiver_id: 509
+                tracking_number: "FF-TRK-983421"
+                weight: 2.75
+                item_name: "Electronics - Mechanical Keyboard & Wrist Rest"
+                current_status: "In Transit"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    patch:
+      tags: [Parcels]
+      summary: Update parcel delivery status or attributes
+      description: |
+        Partially updates a parcel (primarily used by Couriers and Managers to advance `current_status` through `Booked` -> `In Transit` -> `Out for Delivery` -> `Delivered`/`Failed`). Returns `409 Conflict` if attempting to regress from `Delivered`.
+        - **Permissions**: `Admin`, `Manager`, or assigned `Courier`.
+      operationId: patchParcel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParcelUpdate'
+            example:
+              current_status: "Delivered"
+      responses:
+        '200':
+          description: Parcel status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+              example:
+                parcel_id: 1
+                booking_id: 1001
+                sender_id: 502
+                receiver_id: 509
+                tracking_number: "FF-TRK-983421"
+                weight: 2.50
+                item_name: "Electronics - Mechanical Keyboard"
+                current_status: "Delivered"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Parcels]
+      summary: Delete a parcel
+      description: |
+        Deletes a parcel and removes its Delivery Team assignment without deleting the parent booking. Returns `409 Conflict` if the parcel is already `In Transit` or `Delivered`.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: deleteParcel
+      responses:
+        '204':
+          description: Parcel successfully deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ============================================================================
+  # DELIVERY TEAM (Courier <-> Parcel Associative Table from Relational Diagram)
+  # ============================================================================
+  /parcels/{parcel_id}/delivery-team:
+    parameters:
+      - $ref: '#/components/parameters/ParcelIdPath'
+    get:
+      tags: [DeliveryTeam]
+      summary: Get assigned Courier for a parcel
+      description: |
+        Retrieves the `Delivery team` assignment (`staff_id` and `parcel_id`) handling this parcel.
+        - **Permissions**: `Admin`, `Staff` (`Manager`, `Courier`, `Customer Service Representative`).
+      operationId: getParcelDeliveryTeam
+      responses:
+        '200':
+          description: Delivery team assignment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryTeamAssignment'
+              example:
+                staff_id: 5
+                parcel_id: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [DeliveryTeam]
+      summary: Assign or reassign a Courier to a parcel
+      description: |
+        Creates or updates the `Delivery team` record (`staff_id`, `parcel_id`). Returns `422 ValidationError` if the referenced `staff_id` does not have the `Courier` role.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: assignParcelDeliveryTeam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryTeamInput'
+            example:
+              staff_id: 5
+      responses:
+        '200':
+          description: Courier assigned to parcel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryTeamAssignment'
+              example:
+                staff_id: 5
+                parcel_id: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [DeliveryTeam]
+      summary: Unassign Courier from a parcel
+      description: |
+        Removes the `Delivery team` assignment for this parcel.
+        - **Permissions**: `Admin`, `Manager`.
+      operationId: removeParcelDeliveryTeam
+      responses:
+        '204':
+          description: Courier unassigned from parcel
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # COMPLAINTS
+  # ============================================================================
+  /complaints:
+    get:
+      tags: [Complaints]
+      summary: Retrieve complaints
+      description: |
+        Returns a paginated list of customer complaints.
+        - **Permissions**: `Admin`, `Manager`, `Customer Service Representative` (all complaints); `Customer` (automatically scoped to their own filed complaints).
+      operationId: getAllComplaints
+      parameters:
+        - name: category
+          in: query
+          required: false
+          description: Filter complaints by category
+          schema:
+            $ref: '#/components/schemas/ComplaintCategory'
+        - name: status
+          in: query
+          required: false
+          description: Filter complaints by resolution status
+          schema:
+            $ref: '#/components/schemas/ComplaintStatus'
+        - name: staff_id
+          in: query
+          required: false
+          description: Filter complaints handled by a specific CSR staff ID
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+      responses:
+        '200':
+          description: Paginated list of complaints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplaintList'
+              example:
+                data:
+                  - complaint_id: 501
+                    customer_id: 502
+                    parcel_id: 1
+                    staff_id: 8
+                    description: "Package arrived with damaged outer box."
+                    category: "Delivery Issue"
+                    status: "Resolved"
+                    outcome: "Replacement shipment approved and shipping fee refunded."
+                    created_at: "2026-11-03T11:30:00Z"
+                page: 1
+                limit: 20
+                total: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Complaints]
+      summary: Submit a new complaint
+      description: |
+        Logs a new complaint filed by `customer_id` referencing `parcel_id`. Initial `status` is set to `Pending` and `staff_id` is `null` until claimed by a Customer Service Representative.
+        - **Permissions**: `Customer` (for own `customer_id` and linked parcel), `Admin`, `Customer Service Representative`.
+      operationId: createComplaint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplaintCreate'
+            example:
+              customer_id: 502
+              parcel_id: 1
+              description: "Package arrived with damaged outer box."
+              category: "Delivery Issue"
+      responses:
+        '201':
+          description: Complaint successfully logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+              example:
+                complaint_id: 501
+                customer_id: 502
+                parcel_id: 1
+                staff_id: null
+                description: "Package arrived with damaged outer box."
+                category: "Delivery Issue"
+                status: "Pending"
+                outcome: null
+                created_at: "2026-11-03T11:30:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /complaints/{complaint_id}:
+    parameters:
+      - $ref: '#/components/parameters/ComplaintIdPath'
+    get:
+      tags: [Complaints]
+      summary: Get complaint by ID
+      description: |
+        Retrieves complaint details including assigned Customer Service Representative (`staff_id`), `status`, and resolution `outcome`.
+        - **Permissions**: `Admin`, `Staff` (any complaint); `Customer` (own complaint only).
+      operationId: getComplaintById
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+              example:
+                complaint_id: 501
+                customer_id: 502
+                parcel_id: 1
+                staff_id: 8
+                description: "Package arrived with damaged outer box."
+                category: "Delivery Issue"
+                status: "Resolved"
+                outcome: "Replacement shipment approved and shipping fee refunded."
+                created_at: "2026-11-03T11:30:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Complaints]
+      summary: Assign, investigate, or resolve a complaint
+      description: |
+        Updates the handling Customer Service Representative (`staff_id`), structured `status`, and resolution `outcome` of an existing complaint.
+        - **Permissions**: `Admin`, `Manager`, `Customer Service Representative`.
+      operationId: resolveComplaint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplaintResolution'
+            example:
+              staff_id: 8
+              status: "Resolved"
+              outcome: "Replacement shipment approved and shipping fee refunded."
+      responses:
+        '200':
+          description: Complaint successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complaint'
+              example:
+                complaint_id: 501
+                customer_id: 502
+                parcel_id: 1
+                staff_id: 8
+                description: "Package arrived with damaged outer box."
+                category: "Delivery Issue"
+                status: "Resolved"
+                outcome: "Replacement shipment approved and shipping fee refunded."
+                created_at: "2026-11-03T11:30:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Complaints]
+      summary: Delete a complaint record
+      description: |
+        Deletes an invalid or duplicate complaint record.
+        - **Permissions**: `Admin` only.
+      operationId: deleteComplaint
+      responses:
+        '204':
+          description: Complaint successfully deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# ==============================================================================
+# COMPONENTS
+# ==============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT issued at authentication. Claims include user ID, role (`Admin`, `Staff`, `Customer`), and staff specialization (`Manager`, `Courier`, `Customer Service Representative`).
+
+  parameters:
+    CustomerIdPath:
+      name: customer_id
+      in: path
+      required: true
+      description: Unique ID of the customer
+      schema:
+        type: integer
+        minimum: 1
+        example: 502
+    BranchIdPath:
+      name: branch_id
+      in: path
+      required: true
+      description: Unique ID of the branch
+      schema:
+        type: integer
+        minimum: 1
+        example: 12
+    StaffIdPath:
+      name: staff_id
+      in: path
+      required: true
+      description: Unique ID of the staff member
+      schema:
+        type: integer
+        minimum: 1
+        example: 5
+    BookingIdPath:
+      name: booking_id
+      in: path
+      required: true
+      description: Unique ID of the booking
+      schema:
+        type: integer
+        minimum: 1
+        example: 1001
+    PaymentIdPath:
+      name: payment_id
+      in: path
+      required: true
+      description: Unique ID of the payment
+      schema:
+        type: integer
+        minimum: 1
+        example: 9001
+    ParcelIdPath:
+      name: parcel_id
+      in: path
+      required: true
+      description: Unique ID of the parcel
+      schema:
+        type: integer
+        minimum: 1
+        example: 1
+    ComplaintIdPath:
+      name: complaint_id
+      in: path
+      required: true
+      description: Unique ID of the complaint
+      schema:
+        type: integer
+        minimum: 1
+        example: 501
+    AccountTypeQuery:
+      name: account_type
+      in: query
+      required: false
+      description: Filter customers by account type
+      schema:
+        $ref: '#/components/schemas/AccountType'
+    SearchQuery:
+      name: search
+      in: query
+      required: false
+      description: Case-insensitive name search
+      schema:
+        type: string
+        example: santos
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      description: Page number (1-indexed)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: Malformed request (invalid JSON syntax, invalid path ID, or bad query parameter)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: BAD_REQUEST
+            message: Invalid input syntax or query parameter.
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Authentication token is missing or invalid.
+    Forbidden:
+      description: Authenticated user lacks required role or resource ownership
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: FORBIDDEN
+            message: You do not have permission to perform this action on the requested resource.
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: The requested resource was not found.
+    Conflict:
+      description: Business rule violation, duplicate record, or referential integrity constraint
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: CONFLICT
+            message: Action cannot be completed due to referential integrity or lifecycle constraints.
+    ValidationError:
+      description: Request is well-formed JSON but fails schema or domain validation rules
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: Validation failed.
+            details:
+              - field: sender_id
+                issue: sender_id must reference an existing customer.
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Validation failed.
+        details:
+          type: array
+          description: Field-level validation errors, when applicable
+          items:
+            type: object
+            required: [field, issue]
+            properties:
+              field:
+                type: string
+                example: store_name
+              issue:
+                type: string
+                example: store_name is required for E-Commerce accounts.
+
+    # --------------------------------------------------------------------------
+    # Customer Schemas (EERD Disjoint Specialization + Relational Schema)
+    # --------------------------------------------------------------------------
+    AccountType:
+      type: string
+      description: Customer category from EERD disjoint specialization. Determines required subtype attributes.
+      enum: [Retail, E-Commerce, Non-Profit]
+      example: Retail
+
+    CustomerBase:
+      type: object
+      required: [name, contact_info, account_type, address]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          example: "Maria Clara Santos"
+        contact_info:
+          type: string
+          maxLength: 150
+          description: Primary phone number or email address (`contact_info` / `contact_no.`)
+          example: "+63-917-555-0101"
+        account_type:
+          $ref: '#/components/schemas/AccountType'
+        address:
+          type: string
+          maxLength: 200
+          description: Primary residential or organizational street address
+          example: "123 Hayes St, Cagayan de Oro City"
+
+    RetailCustomerCreate:
+      allOf:
+        - $ref: '#/components/schemas/CustomerBase'
+        - type: object
+          required: [first_name, last_name]
+          properties:
+            account_type:
+              type: string
+              enum: [Retail]
+              example: Retail
+            first_name:
+              type: string
+              maxLength: 50
+              description: EERD Retail subtype `F_name`
+              example: "Maria Clara"
+            last_name:
+              type: string
+              maxLength: 50
+              description: EERD Retail subtype `L_name`
+              example: "Santos"
+
+    EcommerceCustomerCreate:
+      allOf:
+        - $ref: '#/components/schemas/CustomerBase'
+        - type: object
+          required: [store_name, business_registration_number]
+          properties:
+            account_type:
+              type: string
+              enum: [E-Commerce]
+              example: E-Commerce
+            store_name:
+              type: string
+              maxLength: 100
+              example: "Kagay-an Tech Official"
+            business_registration_number:
+              type: string
+              maxLength: 50
+              example: "DTI-2026-884120"
+            return_address_override:
+              type: string
+              maxLength: 200
+              nullable: true
+              example: "Warehouse 2, Carmen, Cagayan de Oro City"
+
+    NonProfitCustomerCreate:
+      allOf:
+        - $ref: '#/components/schemas/CustomerBase'
+        - type: object
+          required: [tax_exempt_status, charity_registration_number]
+          properties:
+            account_type:
+              type: string
+              enum: [Non-Profit]
+              example: Non-Profit
+            tax_exempt_status:
+              type: boolean
+              example: true
+            charity_registration_number:
+              type: string
+              maxLength: 50
+              example: "SEC-CN202400912"
+            donor_reference_codes:
+              type: array
+              items:
+                type: string
+                maxLength: 50
+              example: ["DON-2026-A1", "DON-2026-B4"]
+
+    CustomerCreate:
+      oneOf:
+        - $ref: '#/components/schemas/RetailCustomerCreate'
+        - $ref: '#/components/schemas/EcommerceCustomerCreate'
+        - $ref: '#/components/schemas/NonProfitCustomerCreate'
+      discriminator:
+        propertyName: account_type
+        mapping:
+          Retail: '#/components/schemas/RetailCustomerCreate'
+          E-Commerce: '#/components/schemas/EcommerceCustomerCreate'
+          Non-Profit: '#/components/schemas/NonProfitCustomerCreate'
+
+    CustomerUpdate:
+      type: object
+      minProperties: 1
+      description: Partial update payload. Only fields valid for the customer's existing `account_type` are accepted.
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        first_name:
+          type: string
+          maxLength: 50
+        last_name:
+          type: string
+          maxLength: 50
+        contact_info:
+          type: string
+          maxLength: 150
+        address:
+          type: string
+          maxLength: 200
+        store_name:
+          type: string
+          maxLength: 100
+        business_registration_number:
+          type: string
+          maxLength: 50
+        return_address_override:
+          type: string
+          maxLength: 200
+          nullable: true
+        tax_exempt_status:
+          type: boolean
+        charity_registration_number:
+          type: string
+          maxLength: 50
+        donor_reference_codes:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+
+    RecordMetadata:
+      type: object
+      required: [customer_id, created_at, updated_at]
+      properties:
+        customer_id:
+          type: integer
+          readOnly: true
+          example: 502
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: "2026-11-01T08:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: "2026-11-03T10:00:00Z"
+
+    RetailCustomer:
+      allOf:
+        - $ref: '#/components/schemas/RecordMetadata'
+        - $ref: '#/components/schemas/RetailCustomerCreate'
+
+    EcommerceCustomer:
+      allOf:
+        - $ref: '#/components/schemas/RecordMetadata'
+        - $ref: '#/components/schemas/EcommerceCustomerCreate'
+
+    NonProfitCustomer:
+      allOf:
+        - $ref: '#/components/schemas/RecordMetadata'
+        - $ref: '#/components/schemas/NonProfitCustomerCreate'
+
+    Customer:
+      oneOf:
+        - $ref: '#/components/schemas/RetailCustomer'
+        - $ref: '#/components/schemas/EcommerceCustomer'
+        - $ref: '#/components/schemas/NonProfitCustomer'
+      discriminator:
+        propertyName: account_type
+        mapping:
+          Retail: '#/components/schemas/RetailCustomer'
+          E-Commerce: '#/components/schemas/EcommerceCustomer'
+          Non-Profit: '#/components/schemas/NonProfitCustomer'
+
+    CustomerList:
+      type: object
+      required: [data, page, limit, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 42
+
+    # --------------------------------------------------------------------------
+    # Branch Schemas
+    # --------------------------------------------------------------------------
+    BranchInput:
+      type: object
+      required: [branch_name, address, contact_info]
+      properties:
+        branch_name:
+          type: string
+          maxLength: 50
+          example: "Cagayan de Oro Main"
+        address:
+          type: string
+          maxLength: 200
+          example: "Velez St, Cagayan de Oro City"
+        contact_info:
+          type: string
+          maxLength: 50
+          example: "cdo.main@freight-flow.com"
+
+    Branch:
+      allOf:
+        - type: object
+          required: [branch_id]
+          properties:
+            branch_id:
+              type: integer
+              readOnly: true
+              example: 12
+        - $ref: '#/components/schemas/BranchInput'
+
+    BranchList:
+      type: object
+      required: [data, page, limit, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 5
+
+    # --------------------------------------------------------------------------
+    # Staff Schemas (EERD Specialization: Manager, Courier, CSR)
+    # --------------------------------------------------------------------------
+    StaffRole:
+      type: string
+      description: EERD Staff specialization role
+      enum: [Manager, Courier, Customer Service Representative]
+      example: Courier
+
+    PermissionLevel:
+      type: string
+      description: System access privilege tier
+      enum: [Admin, Staff]
+      example: Staff
+
+    StaffInput:
+      type: object
+      required: [branch_id, name, role, permission_level]
+      properties:
+        branch_id:
+          type: integer
+          minimum: 1
+          example: 12
+        name:
+          type: string
+          maxLength: 100
+          example: "Joshua Reyes"
+        role:
+          $ref: '#/components/schemas/StaffRole'
+        permission_level:
+          $ref: '#/components/schemas/PermissionLevel'
+
+    Staff:
+      allOf:
+        - type: object
+          required: [staff_id]
+          properties:
+            staff_id:
+              type: integer
+              readOnly: true
+              example: 5
+        - $ref: '#/components/schemas/StaffInput'
+
+    StaffList:
+      type: object
+      required: [data, page, limit, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Staff'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 18
+
+    # --------------------------------------------------------------------------
+    # Booking Schemas
+    # --------------------------------------------------------------------------
+    BookingStatus:
+      type: string
+      description: Lifecycle status of a customer booking
+      enum: [Pending, Confirmed, Cancelled]
+      example: Pending
+
+    BookingInput:
+      type: object
+      required: [customer_id, branch_id]
+      properties:
+        customer_id:
+          type: integer
+          minimum: 1
+          example: 502
+        branch_id:
+          type: integer
+          minimum: 1
+          example: 12
+        booking_status:
+          $ref: '#/components/schemas/BookingStatus'
+
+    BookingUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        branch_id:
+          type: integer
+          minimum: 1
+          example: 14
+        booking_status:
+          $ref: '#/components/schemas/BookingStatus'
+
+    Booking:
+      allOf:
+        - type: object
+          required: [booking_id, booking_date, booking_status]
+          properties:
+            booking_id:
+              type: integer
+              readOnly: true
+              example: 1001
+            booking_date:
+              type: string
+              format: date-time
+              readOnly: true
+              example: "2026-11-03T10:00:00Z"
+        - $ref: '#/components/schemas/BookingInput'
+
+    BookingList:
+      type: object
+      required: [data, page, limit, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Booking'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 125
+
+    # --------------------------------------------------------------------------
+    # Payment Schemas (1:1 with Booking)
+    # --------------------------------------------------------------------------
+    PaymentMethod:
+      type: string
+      enum: [Cash, Card, GCash, Bank Transfer]
+      example: GCash
+
+    PaymentStatus:
+      type: string
+      enum: [Pending, Paid, Failed, Voided]
+      example: Paid
+
+    PaymentInput:
+      type: object
+      required: [booking_id, payment_method, amount, payment_status]
+      properties:
+        booking_id:
+          type: integer
+          minimum: 1
+          description: Unique booking ID (1:1 relationship with Booking)
+          example: 1001
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethod'
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          maximum: 99999999.99
+          description: Payment amount (`decimal(10,2)`)
+          example: 150.50
+        payment_status:
+          $ref: '#/components/schemas/PaymentStatus'
+
+    PaymentUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethod'
+        payment_status:
+          $ref: '#/components/schemas/PaymentStatus'
+
+    Payment:
+      allOf:
+        - type: object
+          required: [payment_id, transaction_date]
+          properties:
+            payment_id:
+              type: integer
+              readOnly: true
+              example: 9001
+            transaction_date:
+              type: string
+              format: date-time
+              readOnly: true
+              example: "2026-11-03T10:05:00Z"
+        - $ref: '#/components/schemas/PaymentInput'
+
+    PaymentList:
+      type: object
+      required: [data, page, limit, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 118
+
+    # --------------------------------------------------------------------------
+    # Parcel & DeliveryTeam Schemas
+    # --------------------------------------------------------------------------
+    ParcelStatus:
+      type: string
+      description: Sequential parcel delivery status
+      enum: [Pending, Booked, In Transit, Out for Delivery, Delivered, Failed]
+      example: In Transit
+
+    ParcelCreate:
+      type: object
+      required: [booking_id, sender_id, receiver_id, weight, item_name]
+      properties:
+        booking_id:
+          type: integer
+          minimum: 1
+          example: 1001
+        sender_id:
+          type: integer
+          minimum: 1
+          description: Customer ID of the parcel sender (EERD `Generates` relationship)
+          example: 502
+        receiver_id:
+          type: integer
+          minimum: 1
+          description: Customer ID of the parcel recipient (EERD `Receives` relationship)
+          example: 509
+        weight:
+          type: number
+          format: double
+          minimum: 0.01
+          maximum: 999.99
+          description: Parcel weight in kg (`decimal(5,2)`)
+          example: 2.50
+        item_name:
+          type: string
+          maxLength: 100
+          example: "Electronics - Mechanical Keyboard"
+        current_status:
+          $ref: '#/components/schemas/ParcelStatus'
+
+    ParcelUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        weight:
+          type: number
+          format: double
+          minimum: 0.01
+          maximum: 999.99
+        item_name:
+          type: string
+          maxLength: 100
+        current_status:
+          $ref: '#/components/schemas/ParcelStatus'
+
+    Parcel:
+      allOf:
+        - type: object
+          required: [parcel_id, tracking_number, current_status]
+          properties:
+            parcel_id:
+              type: integer
+              readOnly: true
+              example: 1
+            tracking_number:
+              type: string
+              maxLength: 50
+              readOnly: true
+              description: System-generated unique tracking code (`[UK]`)
+              example: "FF-TRK-983421"
+        - $ref: '#/components/schemas/ParcelCreate'
+
+    ParcelList:
+      type: object
+      required: [data, page, limit, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Parcel'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 310
+
+    DeliveryTeamInput:
+      type: object
+      required: [staff_id]
+      properties:
+        staff_id:
+          type: integer
+          minimum: 1
+          description: Staff ID of a user with role `Courier`
+          example: 5
+
+    DeliveryTeamAssignment:
+      type: object
+      required: [staff_id, parcel_id]
+      properties:
+        staff_id:
+          type: integer
+          description: Assigned Courier's `staff_id` (PK/FK)
+          example: 5
+        parcel_id:
+          type: integer
+          description: Assigned Parcel's `parcel_id` (FK)
+          example: 1
+
+    # --------------------------------------------------------------------------
+    # Complaint Schemas
+    # --------------------------------------------------------------------------
+    ComplaintCategory:
+      type: string
+      enum: [Delivery Issue, Seller Dispute, Billing Issue, Damaged Item]
+      example: Delivery Issue
+
+    ComplaintStatus:
+      type: string
+      enum: [Pending, Investigating, Resolved, Dismissed]
+      example: Pending
+
+    ComplaintCreate:
+      type: object
+      required: [customer_id, parcel_id, description, category]
+      properties:
+        customer_id:
+          type: integer
+          minimum: 1
+          description: Customer filing the complaint (EERD `files` relationship)
+          example: 502
+        parcel_id:
+          type: integer
+          minimum: 1
+          description: Referenced parcel ID (EERD `references` relationship)
+          example: 1
+        description:
+          type: string
+          maxLength: 2000
+          example: "Package arrived with damaged outer box."
+        category:
+          $ref: '#/components/schemas/ComplaintCategory'
+
+    ComplaintResolution:
+      type: object
+      minProperties: 1
+      properties:
+        staff_id:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Staff ID of the Customer Service Representative handling the complaint (EERD `Handles` relationship)
+          example: 8
+        status:
+          $ref: '#/components/schemas/ComplaintStatus'
+        outcome:
+          type: string
+          maxLength: 1000
+          nullable: true
+          example: "Replacement shipment approved and shipping fee refunded."
+
+    Complaint:
+      allOf:
+        - type: object
+          required: [complaint_id, status, created_at]
+          properties:
+            complaint_id:
+              type: integer
+              readOnly: true
+              example: 501
+            created_at:
+              type: string
+              format: date-time
+              readOnly: true
+              example: "2026-11-03T12:00:00Z"
+        - $ref: '#/components/schemas/ComplaintCreate'
+        - $ref: '#/components/schemas/ComplaintResolution'
+
+    ComplaintList:
+      type: object
+      required: [data, page, limit, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Complaint'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 14
