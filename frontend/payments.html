@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payments • Freight-Flow Express</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+          },
+          colors: { navy: '#0F172A', royal: '#2563EB', slatebg: '#F8FAFC', line: '#E2E8F0' },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    body { background: #F8FAFC; font-family: 'Inter', sans-serif; }
+    .card { background: #fff; border: 1px solid #E2E8F0; border-radius: 16px; }
+
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
+    .badge::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+    .badge-emerald { color: #047857; background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.35); }
+    .badge-amber   { color: #B45309; background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.40); }
+    .badge-rose    { color: #B91C1C; background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.35); }
+
+    .field { border: 1px solid #CBD5E1; border-radius: 10px; padding: 9px 12px; font-size: 14px; background: #fff; color: #0F172A; transition: border-color .15s, box-shadow .15s; }
+    .field:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 3px rgba(37,99,235,.18); }
+
+    .nav-link { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 999px; color: #CBD5E1; font-size: 14px; font-weight: 500; transition: background .15s, color .15s; }
+    .nav-link:hover { background: rgba(255,255,255,.07); color: #fff; }
+    .nav-link.active { background: #2563EB; color: #fff; }
+
+    .role-pill a { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #475569; }
+    .role-pill a:hover { color: #0F172A; }
+    .role-pill a.active { background: #2563EB; color: #fff; }
+
+    table.ledger th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #64748B; padding: 12px 16px; background: #F8FAFC; border-bottom: 1px solid #E2E8F0; white-space: nowrap; }
+    table.ledger td { padding: 14px 16px; border-bottom: 1px solid #F1F5F9; font-size: 14px; vertical-align: middle; }
+    table.ledger tbody tr:hover { background: #F8FAFC; }
+    table.ledger tr.flash { animation: flash 1.4s ease-out; }
+    @keyframes flash { from { background: rgba(239,68,68,.12); } to { background: transparent; } }
+
+    .btn-void { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #FECACA; color: #B91C1C; background: #fff; border-radius: 10px; padding: 6px 12px; font-size: 13px; font-weight: 600; transition: all .15s; }
+    .btn-void:hover:not(:disabled) { background: #FEF2F2; border-color: #EF4444; }
+    .btn-void:disabled { color: #94A3B8; border-color: #E2E8F0; background: #F8FAFC; cursor: not-allowed; }
+
+    @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    .toast { animation: toast-in .25s ease-out; }
+    @keyframes modal-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+    .modal-panel { animation: modal-in .18s ease-out; }
+    @media (prefers-reduced-motion: reduce) { .toast, .modal-panel, tr.flash { animation: none !important; } }
+  </style>
+</head>
+
+<body class="text-slate-900 antialiased">
+
+  <!-- ============ Sidebar (Manager / Admin) ============ -->
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full lg:translate-x-0 transition-transform bg-navy text-white flex flex-col">
+    <div class="px-6 py-6 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-royal grid place-items-center"><i data-lucide="truck" class="w-5 h-5"></i></div>
+      <div class="leading-tight">
+        <div class="font-extrabold tracking-tight">FREIGHT—FLOW</div>
+        <div class="text-[11px] tracking-[0.2em] text-slate-400">EXPRESS</div>
+      </div>
+    </div>
+
+    <nav class="px-4 mt-2 space-y-1 flex-1" aria-label="Manager navigation">
+      <a href="dashboard.html" class="nav-link"><i data-lucide="layout-dashboard" class="w-5 h-5"></i> Dashboard</a>
+      <a href="payments.html" class="nav-link active" aria-current="page"><i data-lucide="credit-card" class="w-5 h-5"></i> Payments</a>
+      <a href="admin-network.html" class="nav-link"><i data-lucide="network" class="w-5 h-5"></i> Branches &amp; Staff</a>
+      <a href="complaints.html" class="nav-link"><i data-lucide="message-square-warning" class="w-5 h-5"></i> Complaints</a>
+    </nav>
+
+    <div class="px-4 pb-6">
+      <a href="index.html" class="nav-link"><i data-lucide="log-out" class="w-5 h-5"></i> Sign out</a>
+    </div>
+  </aside>
+  <div id="scrim" class="fixed inset-0 z-30 bg-slate-900/50 hidden lg:hidden"></div>
+
+  <div class="lg:pl-64 min-h-screen flex flex-col">
+
+    <!-- ============ Top bar ============ -->
+    <header class="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-line">
+      <div class="px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
+        <button id="menuBtn" class="lg:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+
+        <div class="role-pill flex items-center gap-1 bg-slate-100 border border-line rounded-full p-1" role="navigation" aria-label="Demo role switcher">
+          <a href="booking.html">Customer</a>
+          <a href="payments.html" class="active" aria-current="page">Manager</a>
+          <a href="courier.html">Courier</a>
+          <a href="complaints.html">CSR</a>
+        </div>
+
+        <div class="flex items-center gap-3 pr-1">
+          <span class="w-8 h-8 rounded-full bg-navy text-white grid place-items-center text-xs font-bold">MG</span>
+          <span class="hidden sm:block text-sm leading-tight">
+            <span class="block font-semibold">Branch Manager</span>
+            <span class="block text-xs text-slate-500">Cagayan de Oro Main</span>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-1 px-4 sm:px-8 py-8 max-w-[1280px] w-full mx-auto">
+
+      <div class="mb-8">
+        <h1 class="text-3xl font-extrabold tracking-tight">Every payment, accounted for.</h1>
+        <p class="text-slate-500 mt-1">One booking. One payment. A clear record from collection to void.</p>
+      </div>
+
+      <!-- Summary -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="card p-5"><div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Collected (Paid)</div><div id="sumPaid" class="mt-1 text-2xl font-extrabold font-mono">₱0.00</div></div>
+        <div class="card p-5"><div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Pending</div><div id="sumPending" class="mt-1 text-2xl font-extrabold font-mono">0</div></div>
+        <div class="card p-5"><div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Failed</div><div id="sumFailed" class="mt-1 text-2xl font-extrabold font-mono">0</div></div>
+        <div class="card p-5"><div class="text-xs font-medium text-slate-500 uppercase tracking-wide">Voided</div><div id="sumVoided" class="mt-1 text-2xl font-extrabold font-mono">0</div></div>
+      </div>
+
+      <!-- Ledger -->
+      <section class="card overflow-hidden" aria-labelledby="ledgerTitle">
+        <div class="p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4 border-b border-line">
+          <h2 id="ledgerTitle" class="text-lg font-bold">Payments Ledger</h2>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="relative">
+              <label for="search" class="sr-only">Search by payment_id or booking_id</label>
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+              <input id="search" type="search" class="field pl-9 w-64" placeholder="Search payment_id or booking_id" autocomplete="off" />
+            </div>
+            <div>
+              <label for="statusFilter" class="sr-only">Filter by payment status</label>
+              <select id="statusFilter" class="field">
+                <option value="All">All statuses</option>
+                <option>Paid</option>
+                <option>Pending</option>
+                <option>Failed</option>
+                <option>Voided</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="ledger w-full min-w-[860px]">
+            <thead>
+              <tr>
+                <th scope="col">payment_id</th>
+                <th scope="col">booking_id</th>
+                <th scope="col">payment_method</th>
+                <th scope="col" class="!text-right">amount</th>
+                <th scope="col">payment_status</th>
+                <th scope="col">transaction_date</th>
+                <th scope="col" class="!text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="ledgerBody"></tbody>
+          </table>
+        </div>
+
+        <div class="px-6 py-3 text-xs text-slate-500 border-t border-line flex justify-between">
+          <span id="count"></span>
+          <span class="font-mono">GET /payments</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ Void modal ============ -->
+  <div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody">
+    <div id="modalBackdrop" class="absolute inset-0 bg-slate-900/60"></div>
+    <div class="modal-panel relative bg-white rounded-2xl border border-line shadow-2xl w-full max-w-md p-6">
+      <div class="flex items-start gap-4">
+        <div class="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 grid place-items-center shrink-0"><i data-lucide="octagon-alert" class="w-5 h-5"></i></div>
+        <div>
+          <h2 id="modalTitle" class="text-lg font-bold">Void payment <span id="mPayment" class="font-mono"></span>?</h2>
+          <p id="modalBody" class="text-sm text-slate-600 mt-2 leading-relaxed"></p>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-xl bg-slate-50 border border-line p-4 text-sm space-y-2">
+        <div class="flex items-center justify-between"><span class="text-slate-500 font-mono text-xs">payment_status</span><span class="flex items-center gap-2"><span class="badge badge-emerald">Paid</span><i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-400"></i><span class="badge badge-rose">Voided</span></span></div>
+        <div class="flex items-center justify-between"><span class="text-slate-500 font-mono text-xs">booking_status <span id="mBookingRef"></span></span><span class="flex items-center gap-2"><span class="badge badge-emerald">Confirmed</span><i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-400"></i><span class="badge badge-amber">Pending</span></span></div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-3">
+        <button id="mCancel" type="button" class="border border-slate-300 hover:bg-slate-50 rounded-xl px-4 py-2.5 text-sm font-semibold">Keep payment</button>
+        <button id="mConfirm" type="button" class="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-4 py-2.5 text-sm font-semibold inline-flex items-center gap-2"><i data-lucide="ban" class="w-4 h-4"></i> Void payment</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts" class="fixed bottom-5 right-5 z-50 space-y-3" aria-live="polite"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const peso = (n) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtDate = (iso) => new Date(iso).toLocaleString('en-PH', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+    // Mock of GET /payments (Payment schema) joined with each payment's booking_status.
+    // Only Paid payments belong to a Confirmed booking; every other state leaves it Pending.
+    const payments = [
+      { payment_id: 9001, booking_id: 1001, payment_method: 'GCash',         amount: 150.50, payment_status: 'Paid',    transaction_date: '2026-11-03T10:05:00Z', booking_status: 'Confirmed' },
+      { payment_id: 9002, booking_id: 1002, payment_method: 'Card',          amount: 245.00, payment_status: 'Paid',    transaction_date: '2026-11-04T09:12:00Z', booking_status: 'Confirmed' },
+      { payment_id: 9003, booking_id: 1003, payment_method: 'Cash',          amount:  98.75, payment_status: 'Pending', transaction_date: '2026-11-05T14:40:00Z', booking_status: 'Pending' },
+      { payment_id: 9004, booking_id: 1004, payment_method: 'Bank Transfer', amount: 312.20, payment_status: 'Failed',  transaction_date: '2026-11-06T08:55:00Z', booking_status: 'Pending' },
+      { payment_id: 9005, booking_id: 1005, payment_method: 'GCash',         amount: 180.40, payment_status: 'Paid',    transaction_date: '2026-11-08T16:20:00Z', booking_status: 'Confirmed' },
+      { payment_id: 9006, booking_id: 1006, payment_method: 'Card',          amount: 120.00, payment_status: 'Voided',  transaction_date: '2026-11-09T11:03:00Z', booking_status: 'Pending' },
+      { payment_id: 9007, booking_id: 1007, payment_method: 'Cash',          amount: 205.60, payment_status: 'Paid',    transaction_date: '2026-11-11T13:47:00Z', booking_status: 'Confirmed' },
+      { payment_id: 9008, booking_id: 1008, payment_method: 'Bank Transfer', amount: 399.99, payment_status: 'Pending', transaction_date: '2026-11-12T10:30:00Z', booking_status: 'Pending' },
+    ];
+
+    const PAY_BADGE = { Paid: 'emerald', Pending: 'amber', Failed: 'rose', Voided: 'rose' };
+    const BOOKING_BADGE = { Confirmed: 'emerald', Pending: 'amber', Cancelled: 'rose' };
+    const METHOD_ICON = { 'GCash': 'smartphone', 'Card': 'credit-card', 'Bank Transfer': 'landmark', 'Cash': 'banknote' };
+
+    let flashId = null;
+
+    function render() {
+      const q = $('search').value.trim().replace(/^#/, '').toLowerCase();
+      const status = $('statusFilter').value;
+      const rows = payments.filter((p) =>
+        (status === 'All' || p.payment_status === status) &&
+        (!q || String(p.payment_id).includes(q) || String(p.booking_id).includes(q)));
+
+      const body = $('ledgerBody');
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="7" class="!py-12 text-center text-slate-500">No payments match your search.</td></tr>';
+      } else {
+        body.innerHTML = rows.map((p) => `
+          <tr data-id="${p.payment_id}" class="${p.payment_id === flashId ? 'flash' : ''}">
+            <td class="font-mono font-medium">${p.payment_id}</td>
+            <td>
+              <div class="flex items-center gap-2">
+                <span class="font-mono">#${p.booking_id}</span>
+                <span class="badge badge-${BOOKING_BADGE[p.booking_status]}" title="Linked booking status">${p.booking_status}</span>
+              </div>
+            </td>
+            <td><span class="inline-flex items-center gap-2"><i data-lucide="${METHOD_ICON[p.payment_method]}" class="w-4 h-4 text-slate-400"></i>${p.payment_method}</span></td>
+            <td class="text-right font-mono font-medium ${p.payment_status === 'Voided' ? 'line-through text-slate-400' : ''}">${peso(p.amount)}</td>
+            <td><span class="badge badge-${PAY_BADGE[p.payment_status]}">${p.payment_status}</span></td>
+            <td class="text-slate-600 whitespace-nowrap">${fmtDate(p.transaction_date)}</td>
+            <td class="text-right">
+              ${p.payment_status === 'Paid'
+                ? `<button type="button" class="btn-void" data-void="${p.payment_id}"><i data-lucide="ban" class="w-3.5 h-3.5"></i>Void Payment</button>`
+                : `<span class="text-slate-400 text-sm">—</span>`}
+            </td>
+          </tr>`).join('');
+      }
+      flashId = null;
+
+      $('count').textContent = `Showing ${rows.length} of ${payments.length} payments`;
+      renderSummary();
+      lucide.createIcons();
+    }
+
+    function renderSummary() {
+      const count = (s) => payments.filter((p) => p.payment_status === s).length;
+      $('sumPaid').textContent = peso(payments.filter((p) => p.payment_status === 'Paid').reduce((t, p) => t + p.amount, 0));
+      $('sumPending').textContent = count('Pending');
+      $('sumFailed').textContent = count('Failed');
+      $('sumVoided').textContent = count('Voided');
+    }
+
+    // ---------- Toast ----------
+    function toast(title, body) {
+      const el = document.createElement('div');
+      el.className = 'toast flex items-start gap-3 bg-white border border-line border-l-4 border-l-rose-500 shadow-lg rounded-xl px-4 py-3 w-80';
+      el.setAttribute('role', 'status');
+      el.innerHTML = '<i data-lucide="ban" class="w-5 h-5 text-rose-600 mt-0.5 shrink-0"></i><div class="text-sm"><div class="font-semibold"></div><div class="text-slate-500 mt-0.5"></div></div>';
+      el.querySelector('.font-semibold').textContent = title;
+      el.querySelector('.text-slate-500').textContent = body;
+      $('toasts').appendChild(el);
+      lucide.createIcons();
+      setTimeout(() => el.remove(), 5000);
+    }
+
+    // ---------- Void modal ----------
+    const modal = $('modal');
+    let pending = null;      // payment being voided
+    let lastFocus = null;    // element to restore focus to
+
+    function openModal(id, trigger) {
+      pending = payments.find((p) => p.payment_id === id);
+      if (!pending || pending.payment_status !== 'Paid') return;
+      lastFocus = trigger;
+      $('mPayment').textContent = '#' + pending.payment_id;
+      $('mBookingRef').textContent = '(#' + pending.booking_id + ')';
+      $('modalBody').textContent =
+        `Voiding this payment changes payment_status from Paid to Voided and automatically reverts the linked booking (#${pending.booking_id}) back to Pending.`;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      $('mCancel').focus();
+    }
+    function closeModal() {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      pending = null;
+      if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+    }
+
+    $('mCancel').addEventListener('click', closeModal);
+    $('modalBackdrop').addEventListener('click', closeModal);
+    document.addEventListener('keydown', (e) => {
+      if (modal.classList.contains('hidden')) return;
+      if (e.key === 'Escape') return closeModal();
+      if (e.key === 'Tab') {   // keep focus inside the dialog
+        const f = [...modal.querySelectorAll('button')];
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+
+    $('mConfirm').addEventListener('click', () => {
+      if (!pending || pending.payment_status !== 'Paid') return;
+      // Mock of PATCH /payments/{id} { payment_status: "Voided" }; the API cascades the booking back to Pending.
+      pending.payment_status = 'Voided';
+      pending.booking_status = 'Pending';
+      flashId = pending.payment_id;
+      const { payment_id, booking_id } = pending;
+      pending = null;
+      lastFocus = null;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      render();
+      toast(`Payment #${payment_id} voided`, `Booking #${booking_id} reverted to Pending.`);
+    });
+
+    $('ledgerBody').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-void]');
+      if (btn) openModal(Number(btn.dataset.void), btn);
+    });
+    $('search').addEventListener('input', render);
+    $('statusFilter').addEventListener('change', render);
+
+    // ---------- Mobile sidebar ----------
+    const sidebar = $('sidebar'), scrim = $('scrim'), menuBtn = $('menuBtn');
+    function toggleMenu(open) {
+      sidebar.classList.toggle('-translate-x-full', !open);
+      scrim.classList.toggle('hidden', !open);
+      menuBtn.setAttribute('aria-expanded', String(open));
+    }
+    menuBtn.addEventListener('click', () => toggleMenu(sidebar.classList.contains('-translate-x-full')));
+    scrim.addEventListener('click', () => toggleMenu(false));
+
+    render();
+  </script>
+</body>
+</html>
